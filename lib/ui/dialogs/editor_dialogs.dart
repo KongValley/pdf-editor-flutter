@@ -996,7 +996,7 @@ Future<void> showAboutSelfCheckDialog(
           title: DesktopDialogHeader(
             icon: Icons.picture_as_pdf_rounded,
             title: '关于与环境自检',
-            subtitle: 'PDF 编辑器 v2.1.2（Flutter + PDFium 原生桌面版）',
+            subtitle: 'PDF 编辑器 v2.1.3（Flutter + PDFium 原生桌面版）',
             onClose: () => Navigator.of(ctx).pop(),
           ),
           content: SizedBox(

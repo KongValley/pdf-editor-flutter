@@ -12,6 +12,7 @@ import 'package:pdf_editor_flutter/main.dart';
 import 'package:pdf_editor_flutter/models/annotation_model.dart';
 import 'package:pdf_editor_flutter/state/editor_controller.dart';
 import 'package:pdf_editor_flutter/ui/theme/app_theme.dart';
+import 'package:pdf_editor_flutter/ui/widgets/modern_status_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/modern_top_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/right_inspector.dart';
 import 'package:pdf_editor_flutter/ui/widgets/search_floating_bar.dart';
@@ -125,6 +126,23 @@ void main() {
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
+
+    // 1a. 验证真实 Windows 环境下底栏页码/缩放输入框文字在框内垂直居中
+    final statusEditables = find.descendant(
+      of: find.byType(ModernStatusBar),
+      matching: find.byType(EditableText),
+    );
+    expect(statusEditables, findsNWidgets(2));
+    for (var i = 0; i < 2; i++) {
+      final editable = statusEditables.at(i);
+      final box = find
+          .ancestor(of: editable, matching: find.byType(AnimatedContainer))
+          .first;
+      expect(
+        (tester.getCenter(editable).dy - tester.getCenter(box).dy).abs(),
+        lessThanOrEqualTo(0.5),
+      );
+    }
 
     // 1b. 验证 PDF 右侧纵向滚动条已渲染，并可通过点击轨道与拖拽滑块快速下滑/回顶
     final vScrollbar = find.byKey(const Key('pdf_vertical_scrollbar'));

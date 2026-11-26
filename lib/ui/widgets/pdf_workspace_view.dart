@@ -1813,8 +1813,12 @@ class _PageAnnotationOverlayState extends State<_PageAnnotationOverlay> {
                 height: 1.2,
               ),
               decoration: const InputDecoration(
-                isDense: true,
+                isCollapsed: true,
+                filled: false,
+                visualDensity: VisualDensity.standard,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
                 hintText: '输入文字（Ctrl+Enter 完成）',
                 hintStyle: TextStyle(

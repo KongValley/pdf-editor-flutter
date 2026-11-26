@@ -732,6 +732,7 @@ class AppTheme {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        visualDensity: VisualDensity.standard,
         filled: true,
         fillColor: ext.subtleFill.withValues(alpha: dark ? 0.68 : 0.72),
         hoverColor: ext.hoverFill.withValues(alpha: dark ? 0.35 : 0.5),

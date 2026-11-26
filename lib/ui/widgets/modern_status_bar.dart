@@ -748,17 +748,8 @@ class _CompactBarField extends StatelessWidget {
                 focusNode: focusNode,
                 groupId: focusNode,
                 textAlign: TextAlign.center,
-                textAlignVertical: TextAlignVertical.center,
-                style:
-                    const TextStyle(fontSize: AppTypography.body, height: 1.15),
-                decoration: const InputDecoration(
-                  isCollapsed: true,
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: EdgeInsets.zero,
-                ),
+                style: const TextStyle(fontSize: AppTypography.body),
+                decoration: null,
                 onTap: _selectAll,
                 onSubmitted: (_) {
                   onCommit();

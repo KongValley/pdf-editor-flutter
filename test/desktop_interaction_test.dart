@@ -495,4 +495,64 @@ void main() {
     expect(selected, 'b');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'ModernStatusBar compact inputs stay vertically centered on Windows VisualDensity.compact',
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final ctrl = _makeTestDocController();
+    addTearDown(ctrl.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(false),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ModernStatusBar(
+              controller: ctrl,
+              onOpenProblems: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final editables = find.descendant(
+      of: find.byType(ModernStatusBar),
+      matching: find.byType(EditableText),
+    );
+    expect(editables, findsNWidgets(2));
+
+    final pageFieldBox = find
+        .ancestor(
+          of: editables.first,
+          matching: find.byType(AnimatedContainer),
+        )
+        .first;
+    final zoomFieldBox = find
+        .ancestor(
+          of: editables.last,
+          matching: find.byType(AnimatedContainer),
+        )
+        .first;
+    final slashText = find.text('/ 5');
+
+    final pageBoxCenterY = tester.getCenter(pageFieldBox).dy;
+    final pageEditableCenterY = tester.getCenter(editables.first).dy;
+    final zoomBoxCenterY = tester.getCenter(zoomFieldBox).dy;
+    final zoomEditableCenterY = tester.getCenter(editables.last).dy;
+    final slashCenterY = tester.getCenter(slashText).dy;
+
+    expect((pageEditableCenterY - pageBoxCenterY).abs(), lessThanOrEqualTo(0.5));
+    expect((zoomEditableCenterY - zoomBoxCenterY).abs(), lessThanOrEqualTo(0.5));
+    expect((pageEditableCenterY - slashCenterY).abs(), lessThanOrEqualTo(1.0));
+    expect(tester.takeException(), isNull);
+  });
 }
