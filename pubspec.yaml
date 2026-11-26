@@ -1,0 +1,36 @@
+name: pdf_editor_flutter
+description: "PDF 编辑器 - 基于 Flutter 与 PDFium 的 Windows 10 x64 桌面 PDF 阅读与标注编辑器"
+publish_to: 'none'
+version: 2.0.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  collection: ^1.19.1
+  desktop_drop: ^0.8.4
+  ffi: ^2.2.0
+  file_picker: ^13.4.1
+  image: ^4.13.1
+  intl: ^0.20.3
+  pasteboard: ^0.6.2
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  pdf: ^3.13.1
+  pdfium_dart: ^0.4.3
+  pdfrx: ^3.0.0
+  pdfrx_engine: ^0.9.3
+  uuid: ^4.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
