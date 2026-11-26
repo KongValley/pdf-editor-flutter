@@ -11,6 +11,7 @@ import '../../services/system_fonts_service.dart';
 import '../../state/editor_controller.dart';
 import '../../utils/page_range.dart';
 import '../theme/app_theme.dart';
+import '../widgets/desktop_controls.dart';
 import '../widgets/hover_feedback.dart';
 
 enum UnsavedChangesChoice { save, discard, cancel }
@@ -29,134 +30,82 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
     barrierDismissible: barrierDismissible,
     builder: (ctx) {
       final c = ctx.appColors;
-      const dangerRed = Color(0xFFDC2626);
       return CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.escape): () =>
               Navigator.of(ctx).pop(UnsavedChangesChoice.cancel),
         },
         child: AlertDialog(
-          titlePadding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
-        contentPadding: const EdgeInsets.fromLTRB(22, 14, 22, 12),
-        title: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.warning_amber_rounded,
-                size: 21,
-                color: Color(0xFFD97706),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(fontSize: AppTypography.title)),
-                  if (fileName != null && fileName.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      fileName,
-                      overflow: TextOverflow.ellipsis,
+          title: DesktopDialogHeader(
+            icon: Icons.warning_amber_rounded,
+            iconColor: AppTheme.warning,
+            iconBackground: const Color(0xFFF59E0B).withValues(alpha: 0.16),
+            title: title,
+            subtitle: (fileName != null && fileName.isNotEmpty) ? fileName : null,
+          ),
+          content: SizedBox(
+            width: 408,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (summary != null && summary.isNotEmpty) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: c.subtleFill,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: c.border),
+                    ),
+                    child: Text(
+                      '未保存内容：$summary',
                       style: TextStyle(
                         fontSize: AppTypography.caption,
-                        fontWeight: FontWeight.w400,
                         color: c.mutedText,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ],
+                  ),
                 ],
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 400,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (summary != null && summary.isNotEmpty) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: c.subtleFill,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: Text(
-                    '未保存内容：$summary',
-                    style: TextStyle(
-                      fontSize: AppTypography.caption,
-                      color: c.mutedText,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: AppTypography.body,
+                    height: 1.55,
+                    color: Theme.of(ctx)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.88),
                   ),
                 ),
               ],
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: AppTypography.body,
-                  height: 1.55,
-                  color: Theme.of(ctx)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.88),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(UnsavedChangesChoice.cancel),
-            child: Text('取消', style: TextStyle(color: c.mutedText)),
-          ),
-          OutlinedButton(
-            onPressed: () =>
-                Navigator.of(ctx).pop(UnsavedChangesChoice.discard),
-            style: ButtonStyle(
-              foregroundColor: const WidgetStatePropertyAll(dangerRed),
-              side: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.hovered)) {
-                  return BorderSide(color: dangerRed.withValues(alpha: 0.7));
-                }
-                return BorderSide(color: dangerRed.withValues(alpha: 0.35));
-              }),
-              overlayColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.pressed)) {
-                  return dangerRed.withValues(alpha: 0.14);
-                }
-                if (states.contains(WidgetState.hovered)) {
-                  return dangerRed.withValues(alpha: 0.08);
-                }
-                return null;
-              }),
             ),
-            child: const Text('不保存'),
           ),
-          FilledButton.icon(
-            autofocus: true,
-            onPressed: () => Navigator.of(ctx).pop(UnsavedChangesChoice.save),
-            icon: const Icon(Icons.save_rounded, size: 16),
-            label: Text(saveLabel),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(UnsavedChangesChoice.cancel),
+              child: const Text('取消'),
+            ),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(UnsavedChangesChoice.discard),
+              style: AppTheme.dangerOutlinedButtonStyle(c),
+              child: const Text('不保存'),
+            ),
+            FilledButton.icon(
+              autofocus: true,
+              onPressed: () => Navigator.of(ctx).pop(UnsavedChangesChoice.save),
+              icon: const Icon(Icons.save_rounded, size: 16),
+              label: Text(saveLabel),
+            ),
+          ],
+        ),
       );
     },
   );
@@ -204,117 +153,90 @@ Future<String?> showPasswordPromptDialog(
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
           final c = ctx.appColors;
-          return AlertDialog(
-            titlePadding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
-            contentPadding: const EdgeInsets.fromLTRB(22, 14, 22, 12),
-            title: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: c.accentSoft,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    Icons.lock_outline_rounded,
-                    size: 20,
-                    color: c.accent,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('输入 PDF 密码',
-                          style: TextStyle(fontSize: AppTypography.title)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '此文档受密码保护，请解锁后查看',
-                        style: TextStyle(
-                          fontSize: AppTypography.body,
-                          fontWeight: FontWeight.w400,
-                          color: c.mutedText,
+          return CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): () =>
+                  Navigator.of(ctx).pop(null),
+            },
+            child: AlertDialog(
+              title: const DesktopDialogHeader(
+                icon: Icons.lock_outline_rounded,
+                title: '输入 PDF 密码',
+                subtitle: '此文档受密码保护，请解锁后查看',
+              ),
+              content: SizedBox(
+                width: 368,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (wrongPassword)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0x18DC2626),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: const Color(0x55DC2626),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              size: 16,
+                              color: AppTheme.danger,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              '密码错误，请重新输入',
+                              style: TextStyle(
+                                color: AppTheme.danger,
+                                fontSize: AppTypography.body,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    TextField(
+                      controller: ctrl,
+                      obscureText: obscure,
+                      autofocus: true,
+                      decoration: AppTheme.compactInputDecoration(
+                        c,
+                        hintText: '请输入文档打开密码',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 18,
+                          ),
+                          tooltip: obscure ? '显示密码' : '隐藏密码',
+                          onPressed: () => setState(() => obscure = !obscure),
+                        ),
+                      ),
+                      onSubmitted: (v) => Navigator.of(ctx).pop(v),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(null),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+                  child: const Text('解锁打开'),
                 ),
               ],
             ),
-            content: SizedBox(
-              width: 360,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (wrongPassword)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0x18DC2626),
-                        borderRadius: BorderRadius.circular(7),
-                        border: Border.all(
-                          color: const Color(0x55DC2626),
-                        ),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            size: 15,
-                            color: Color(0xFFDC2626),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            '密码错误，请重新输入',
-                            style: TextStyle(
-                              color: Color(0xFFDC2626),
-                              fontSize: AppTypography.body,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  TextField(
-                    controller: ctrl,
-                    obscureText: obscure,
-                    autofocus: true,
-                    decoration: AppTheme.compactInputDecoration(
-                      c,
-                      hintText: '请输入文档打开密码',
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 18,
-                        ),
-                        tooltip: obscure ? '显示密码' : '隐藏密码',
-                        onPressed: () => setState(() => obscure = !obscure),
-                      ),
-                    ),
-                    onSubmitted: (v) => Navigator.of(ctx).pop(v),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(null),
-                child: Text('取消', style: TextStyle(color: c.mutedText)),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(ctrl.text),
-                child: const Text('解锁打开'),
-              ),
-            ],
           );
         },
       ),
@@ -355,36 +277,47 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
   var exportFormat = ExportFormatChoice.pdf;
   var printQuality = PrintQuality.standard;
 
+  final isDelete = title.contains('删除');
+  final headerIcon = showPrintOptions
+      ? Icons.print_outlined
+      : showExportOptions
+          ? Icons.ios_share_rounded
+          : isDelete
+              ? Icons.delete_sweep_outlined
+              : Icons.content_cut_rounded;
+
   return await showDialog<PageRangeDialogResult>(
     context: context,
     builder: (ctx) => DialogControllersHost(
       controllers: [rangeCtrl],
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
+          final c = ctx.appColors;
           final parsed = parsePageRange(rangeCtrl.text, totalPages);
           final valid = parsed != null && parsed.isNotEmpty;
           return AlertDialog(
-            title: Text(title,
-                style: const TextStyle(fontSize: AppTypography.title)),
+            title: DesktopDialogHeader(
+              icon: headerIcon,
+              iconColor: isDelete ? AppTheme.danger : null,
+              iconBackground:
+                  isDelete ? AppTheme.danger.withValues(alpha: 0.14) : null,
+              title: title,
+              subtitle: '共 $totalPages 页，示例：1-3,5,8',
+              onClose: () => Navigator.of(ctx).pop(null),
+            ),
             content: SizedBox(
-              width: 400,
+              width: 410,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '页码范围（共 $totalPages 页，示例：1-3,5,8）',
-                    style: TextStyle(
-                      fontSize: AppTypography.body,
-                      color: ctx.appColors.mutedText,
-                    ),
-                  ),
+                  const DesktopFieldLabel('页码范围'),
                   const SizedBox(height: 6),
                   TextField(
                     controller: rangeCtrl,
                     autofocus: true,
                     decoration: AppTheme.compactInputDecoration(
-                      ctx.appColors,
+                      c,
                       hintText: '1-$totalPages',
                       errorText: valid ? null : '请输入有效的 1-$totalPages 范围',
                     ),
@@ -404,20 +337,18 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                   Text(
                     valid ? '将处理 ${parsed.length} 页' : '范围无效',
                     style: TextStyle(
-                      fontSize: AppTypography.body,
-                      color: valid
-                          ? ctx.appColors.accent
-                          : const Color(0xFFE03131),
+                      fontSize: AppTypography.caption,
+                      fontWeight: FontWeight.w500,
+                      color: valid ? c.accent : AppTheme.danger,
                     ),
                   ),
                   if (showExportOptions) ...[
-                    const SizedBox(height: 12),
-                    const Text('导出格式',
-                        style: TextStyle(fontSize: AppTypography.body)),
+                    const SizedBox(height: 14),
+                    const DesktopFieldLabel('导出格式'),
                     const SizedBox(height: 6),
-                    DropdownButtonFormField<ExportFormatChoice>(
-                      initialValue: exportFormat,
-                      decoration: AppTheme.compactInputDecoration(ctx.appColors),
+                    DesktopSelect<ExportFormatChoice>(
+                      isExpanded: true,
+                      value: exportFormat,
                       items: const [
                         DropdownMenuItem(
                           value: ExportFormatChoice.pdf,
@@ -442,13 +373,12 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                     ),
                   ],
                   if (showPrintOptions) ...[
-                    const SizedBox(height: 12),
-                    const Text('清晰度',
-                        style: TextStyle(fontSize: AppTypography.body)),
+                    const SizedBox(height: 14),
+                    const DesktopFieldLabel('清晰度'),
                     const SizedBox(height: 6),
-                    DropdownButtonFormField<PrintQuality>(
-                      initialValue: printQuality,
-                      decoration: AppTheme.compactInputDecoration(ctx.appColors),
+                    DesktopSelect<PrintQuality>(
+                      isExpanded: true,
+                      value: printQuality,
                       items: [
                         for (final q in PrintQuality.values)
                           DropdownMenuItem(value: q, child: Text(q.label)),
@@ -459,16 +389,11 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                     ),
                   ],
                   if (showIncludeAnnotations) ...[
-                    const SizedBox(height: 10),
-                    CheckboxListTile(
+                    const SizedBox(height: 12),
+                    DesktopCheckboxRow(
                       value: includeAnnots,
-                      onChanged: (v) =>
-                          setState(() => includeAnnots = v ?? true),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text('包含注释',
-                          style: TextStyle(fontSize: AppTypography.body)),
-                      dense: true,
+                      label: '包含注释',
+                      onChanged: (v) => setState(() => includeAnnots = v),
                     ),
                   ],
                 ],
@@ -480,6 +405,9 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                 child: const Text('取消'),
               ),
               FilledButton(
+                style: isDelete
+                    ? FilledButton.styleFrom(backgroundColor: AppTheme.danger)
+                    : null,
                 onPressed: valid
                     ? () => Navigator.of(ctx).pop(PageRangeDialogResult(
                           pagesZeroBased: parsed,
@@ -515,6 +443,7 @@ Future<void> showPageNumberDialog(
       controllers: [rangeCtrl, startCtrl, sizeCtrl, marginCtrl],
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
+          final c = ctx.appColors;
           final total = controller.pageCount;
           final pages = rangeCtrl.text.trim().isEmpty
               ? List<int>.generate(total, (i) => i)
@@ -533,10 +462,14 @@ Future<void> showPageNumberDialog(
               pages == null ? total : sampleStart + pages.length - 1;
 
           return AlertDialog(
-            title: const Text('添加页码',
-                style: TextStyle(fontSize: AppTypography.title)),
+            title: DesktopDialogHeader(
+              icon: Icons.format_list_numbered_rounded,
+              title: '添加页码',
+              subtitle: '批量为文档页面写入页码编号（共 $total 页）',
+              onClose: () => Navigator.of(ctx).pop(),
+            ),
             content: SizedBox(
-              width: 450,
+              width: 460,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,53 +483,65 @@ Future<void> showPageNumberDialog(
                     ),
                     onChanged: (_) => setState(() {}),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: DropdownButtonFormField<PageNumberFormat>(
-                          isExpanded: true,
-                          initialValue: format,
-                          decoration: const InputDecoration(labelText: '编号格式'),
-                          items: [
-                            for (final f in PageNumberFormat.values)
-                              DropdownMenuItem(
-                                value: f,
-                                child: Text(
-                                  f.label,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const DesktopFieldLabel('编号格式'),
+                            const SizedBox(height: 5),
+                            DesktopSelect<PageNumberFormat>(
+                              isExpanded: true,
+                              value: format,
+                              items: [
+                                for (final f in PageNumberFormat.values)
+                                  DropdownMenuItem(
+                                    value: f,
+                                    child: Text(
+                                      f.label,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) setState(() => format = v);
+                              },
+                            ),
                           ],
-                          onChanged: (v) {
-                            if (v != null) setState(() => format = v);
-                          },
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: DropdownButtonFormField<PageNumberPosition>(
-                          isExpanded: true,
-                          initialValue: position,
-                          decoration: const InputDecoration(labelText: '位置'),
-                          items: [
-                            for (final pos in PageNumberPosition.values)
-                              DropdownMenuItem(
-                                value: pos,
-                                child: Text(
-                                  pos.label,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const DesktopFieldLabel('位置'),
+                            const SizedBox(height: 5),
+                            DesktopSelect<PageNumberPosition>(
+                              isExpanded: true,
+                              value: position,
+                              items: [
+                                for (final pos in PageNumberPosition.values)
+                                  DropdownMenuItem(
+                                    value: pos,
+                                    child: Text(
+                                      pos.label,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) setState(() => position = v);
+                              },
+                            ),
                           ],
-                          onChanged: (v) {
-                            if (v != null) setState(() => position = v);
-                          },
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -636,14 +581,34 @@ Future<void> showPageNumberDialog(
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: ctx.appColors.subtleFill,
-                      borderRadius: BorderRadius.circular(8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
                     ),
-                    child: Text(
-                      '预览样例：${format.format(sampleStart, sampleTotal)}',
-                      style: const TextStyle(fontSize: AppTypography.body),
+                    decoration: BoxDecoration(
+                      color: c.subtleFill,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: c.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          '预览样例',
+                          style: TextStyle(
+                            fontSize: AppTypography.caption,
+                            color: c.mutedText,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          format.format(sampleStart, sampleTotal),
+                          style: TextStyle(
+                            fontSize: AppTypography.body,
+                            fontWeight: FontWeight.w600,
+                            color: c.accent,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -696,6 +661,7 @@ Future<void> showWatermarkDialog(
       controllers: [rangeCtrl, textCtrl, sizeCtrl],
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) {
+          final c = ctx.appColors;
           final total = controller.pageCount;
           final pages = rangeCtrl.text.trim().isEmpty
               ? List<int>.generate(total, (i) => i)
@@ -707,10 +673,14 @@ Future<void> showWatermarkDialog(
           final valid = pages != null && textOk && sizeOk;
 
           return AlertDialog(
-            title: const Text('添加文字水印',
-                style: TextStyle(fontSize: AppTypography.title)),
+            title: DesktopDialogHeader(
+              icon: Icons.branding_watermark_outlined,
+              title: '添加文字水印',
+              subtitle: '自定义水印文本、角度、透明度与排布方式',
+              onClose: () => Navigator.of(ctx).pop(),
+            ),
             content: SizedBox(
-              width: 440,
+              width: 452,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -750,12 +720,11 @@ Future<void> showWatermarkDialog(
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
-                      const Text('颜色：',
-                          style: TextStyle(fontSize: AppTypography.body)),
-                      const SizedBox(width: 6),
+                      const DesktopFieldLabel('颜色'),
+                      const SizedBox(width: 10),
                       for (final hex in kAnnotationPalette)
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
@@ -772,17 +741,16 @@ Future<void> showWatermarkDialog(
                                         : 1.0,
                                 duration: const Duration(milliseconds: 100),
                                 child: Container(
-                                  width: 20,
-                                  height: 20,
+                                  width: 22,
+                                  height: 22,
                                   decoration: BoxDecoration(
                                     color: hexToColor(hex),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: selected
-                                          ? ctx.appColors.accent
+                                          ? c.accent
                                           : hovered
-                                              ? ctx.appColors.accent
-                                                  .withValues(alpha: 0.75)
+                                              ? c.accent.withValues(alpha: 0.75)
                                               : Colors.black26,
                                       width: (selected || hovered) ? 2.5 : 1,
                                     ),
@@ -794,44 +762,51 @@ Future<void> showWatermarkDialog(
                         ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      Text('不透明度 ${(opacity * 100).round()}%',
-                          style: const TextStyle(fontSize: AppTypography.body)),
-                      Expanded(
-                        child: Slider(
-                          min: 0.05,
-                          max: 0.9,
-                          value: opacity,
-                          onChanged: (v) => setState(() => opacity = v),
+                      const DesktopFieldLabel('不透明度'),
+                      const Spacer(),
+                      Text(
+                        '${(opacity * 100).round()}%',
+                        style: const TextStyle(
+                          fontSize: AppTypography.body,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
+                  Slider(
+                    min: 0.05,
+                    max: 0.9,
+                    value: opacity,
+                    onChanged: (v) => setState(() => opacity = v),
+                  ),
                   Row(
                     children: [
-                      Text('旋转 ${rotation.round()}°',
-                          style: const TextStyle(fontSize: AppTypography.body)),
-                      Expanded(
-                        child: Slider(
-                          min: -90,
-                          max: 90,
-                          divisions: 36,
-                          value: rotation,
-                          onChanged: (v) => setState(() => rotation = v),
+                      const DesktopFieldLabel('旋转角度'),
+                      const Spacer(),
+                      Text(
+                        '${rotation.round()}°',
+                        style: const TextStyle(
+                          fontSize: AppTypography.body,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                  CheckboxListTile(
+                  Slider(
+                    min: -90,
+                    max: 90,
+                    divisions: 36,
+                    value: rotation,
+                    onChanged: (v) => setState(() => rotation = v),
+                  ),
+                  const SizedBox(height: 4),
+                  DesktopCheckboxRow(
                     value: tile,
-                    onChanged: (v) => setState(() => tile = v ?? true),
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('铺满页面（否则居中单条）',
-                        style: TextStyle(fontSize: AppTypography.body)),
-                    dense: true,
+                    label: '铺满页面（否则居中单条）',
+                    onChanged: (v) => setState(() => tile = v),
                   ),
                 ],
               ),
@@ -872,59 +847,134 @@ Future<void> showProblemsDialog(
 ) async {
   await showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('问题明细 (${controller.problems.length})',
-          style: const TextStyle(fontSize: AppTypography.title)),
-      content: SizedBox(
-        width: 520,
-        height: 320,
-        child: controller.problems.isEmpty
-            ? const Center(child: Text('暂无异常记录'))
-            : ListView.separated(
-                itemCount: controller.problems.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, idx) {
-                  final pItem = controller.problems[idx];
-                  final timeStr =
-                      '${pItem.timestamp.hour.toString().padLeft(2, '0')}:${pItem.timestamp.minute.toString().padLeft(2, '0')}:${pItem.timestamp.second.toString().padLeft(2, '0')}';
-                  return ListTile(
-                    dense: true,
-                    title: Text('[${pItem.source}] ${pItem.message}',
-                        style: const TextStyle(fontSize: AppTypography.body)),
-                    subtitle: Text(
-                      pItem.detail == null ? timeStr : '$timeStr · ${pItem.detail}',
-                      style: const TextStyle(fontSize: AppTypography.body),
-                    ),
-                  );
-                },
-              ),
-      ),
-      actions: [
-        if (controller.problems.isNotEmpty)
-          TextButton(
-            onPressed: () async {
-              final text = controller.problems
-                  .map((p) => '[${p.timestamp}] [${p.source}] ${p.message}')
-                  .join('\n');
-              await Clipboard.setData(ClipboardData(text: text));
-              controller.showToast('已复制全部问题明细');
-            },
-            child: const Text('复制全部'),
-          ),
-        if (controller.problems.isNotEmpty)
-          TextButton(
-            onPressed: () {
-              controller.clearProblems();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('清空'),
-          ),
-        FilledButton(
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('关闭'),
+    builder: (ctx) {
+      final c = ctx.appColors;
+      return AlertDialog(
+        title: DesktopDialogHeader(
+          icon: Icons.report_gmailerrorred_rounded,
+          iconColor: AppTheme.danger,
+          iconBackground: AppTheme.danger.withValues(alpha: 0.14),
+          title: '问题明细 (${controller.problems.length})',
+          subtitle: '运行过程中的告警与错误记录',
+          onClose: () => Navigator.of(ctx).pop(),
         ),
-      ],
-    ),
+        content: SizedBox(
+          width: 520,
+          height: 320,
+          child: controller.problems.isEmpty
+              ? Container(
+                  decoration: BoxDecoration(
+                    color: c.subtleFill,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: c.border),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '暂无异常记录',
+                      style: TextStyle(
+                        fontSize: AppTypography.body,
+                        color: c.mutedText,
+                      ),
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  itemCount: controller.problems.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
+                  itemBuilder: (_, idx) {
+                    final pItem = controller.problems[idx];
+                    final timeStr =
+                        '${pItem.timestamp.hour.toString().padLeft(2, '0')}:${pItem.timestamp.minute.toString().padLeft(2, '0')}:${pItem.timestamp.second.toString().padLeft(2, '0')}';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: c.subtleFill,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: c.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.danger.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(
+                                  pItem.source,
+                                  style: const TextStyle(
+                                    fontSize: AppTypography.caption,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.danger,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  pItem.message,
+                                  style: const TextStyle(
+                                    fontSize: AppTypography.body,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            pItem.detail == null
+                                ? timeStr
+                                : '$timeStr · ${pItem.detail}',
+                            style: TextStyle(
+                              fontSize: AppTypography.caption,
+                              color: c.mutedText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          if (controller.problems.isNotEmpty)
+            OutlinedButton.icon(
+              onPressed: () async {
+                final text = controller.problems
+                    .map((p) => '[${p.timestamp}] [${p.source}] ${p.message}')
+                    .join('\n');
+                await Clipboard.setData(ClipboardData(text: text));
+                controller.showToast('已复制全部问题明细');
+              },
+              icon: const Icon(Icons.copy_rounded, size: 15),
+              label: const Text('复制全部'),
+            ),
+          if (controller.problems.isNotEmpty)
+            OutlinedButton(
+              style: AppTheme.dangerOutlinedButtonStyle(c),
+              onPressed: () {
+                controller.clearProblems();
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('清空'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      );
+    },
   );
 }
 
@@ -941,9 +991,14 @@ Future<void> showAboutSelfCheckDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setState) {
+        final c = ctx.appColors;
         return AlertDialog(
-          title: const Text('关于与环境自检',
-              style: TextStyle(fontSize: AppTypography.title)),
+          title: DesktopDialogHeader(
+            icon: Icons.picture_as_pdf_rounded,
+            title: '关于与环境自检',
+            subtitle: 'PDF 编辑器 v2.1.2（Flutter + PDFium 原生桌面版）',
+            onClose: () => Navigator.of(ctx).pop(),
+          ),
           content: SizedBox(
             width: 520,
             child: SingleChildScrollView(
@@ -951,35 +1006,47 @@ Future<void> showAboutSelfCheckDialog(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'PDF 编辑器 v2.1.0（Flutter + PDFium 原生桌面版）',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: AppTypography.body,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                   Text(
                     '专为 Windows 10/11 64 位重构，完全离线运行，支持原生 PDFium 光栅化与 Windows OCR。',
                     style: TextStyle(
                       fontSize: AppTypography.body,
-                      color: ctx.appColors.mutedText,
+                      color: c.mutedText,
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  _EnvRow('操作系统', '${Platform.operatingSystemVersion} (x64)'),
-                  _EnvRow('渲染引擎', 'Flutter Impeller/Skia + PDFium C++'),
-                  _EnvRow('默认中文字体', cjkFont ?? '未检测到（文字中文保存受限）'),
-                  _EnvRow('已扫系统字族', '${controller.systemFonts.length} 个'),
-                  _EnvRow('数据目录可写', writable ? '是' : '否（受限）'),
-                  _EnvRow('运行日志目录', logDir.path),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: c.subtleFill,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: c.border),
+                    ),
+                    child: Column(
+                      children: [
+                        _EnvRow('操作系统', '${Platform.operatingSystemVersion} (x64)'),
+                        Divider(height: 12, color: c.border.withValues(alpha: 0.7)),
+                        const _EnvRow('渲染引擎', 'Flutter Impeller/Skia + PDFium C++'),
+                        Divider(height: 12, color: c.border.withValues(alpha: 0.7)),
+                        _EnvRow('默认中文字体', cjkFont ?? '未检测到（文字中文保存受限）'),
+                        Divider(height: 12, color: c.border.withValues(alpha: 0.7)),
+                        _EnvRow('已扫系统字族', '${controller.systemFonts.length} 个'),
+                        Divider(height: 12, color: c.border.withValues(alpha: 0.7)),
+                        _EnvRow('数据目录可写', writable ? '是' : '否（受限）'),
+                        Divider(height: 12, color: c.border.withValues(alpha: 0.7)),
+                        _EnvRow('运行日志目录', logDir.path),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Text('日志等级：',
-                          style: TextStyle(fontSize: AppTypography.body)),
+                      const Text(
+                        '日志等级：',
+                        style: TextStyle(fontSize: AppTypography.body),
+                      ),
                       const SizedBox(width: 8),
-                      DropdownButton<AppLogLevel>(
+                      DesktopSelect<AppLogLevel>(
+                        minHeight: 34,
                         value: AppDataService.logLevel,
                         items: [
                           for (final lvl in AppLogLevel.values)
@@ -995,8 +1062,7 @@ Future<void> showAboutSelfCheckDialog(
                       OutlinedButton.icon(
                         onPressed: () => NativeBridge.openFolder(logDir.path),
                         icon: const Icon(Icons.folder_open_rounded, size: 16),
-                        label: const Text('打开日志目录',
-                            style: TextStyle(fontSize: AppTypography.body)),
+                        label: const Text('打开日志目录'),
                       ),
                     ],
                   ),
@@ -1023,29 +1089,27 @@ class _EnvRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: AppTypography.body,
-                color: context.appColors.mutedText,
-              ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 112,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: AppTypography.caption,
+              fontWeight: FontWeight.w500,
+              color: context.appColors.mutedText,
             ),
           ),
-          Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontSize: AppTypography.body),
-            ),
+        ),
+        Expanded(
+          child: SelectableText(
+            value,
+            style: const TextStyle(fontSize: AppTypography.body),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

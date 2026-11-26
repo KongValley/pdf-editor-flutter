@@ -20,6 +20,7 @@ import 'ui/dialogs/batch_dialogs.dart';
 import 'ui/dialogs/editor_dialogs.dart';
 import 'ui/layout/workspace_breakpoints.dart';
 import 'ui/theme/app_theme.dart';
+import 'ui/widgets/desktop_controls.dart';
 import 'ui/widgets/floating_tool_dock.dart';
 import 'ui/widgets/modern_status_bar.dart';
 import 'ui/widgets/modern_top_bar.dart';
@@ -717,214 +718,140 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         if (annot.kind == AnnotationKind.text && !annot.locked)
           const PopupMenuItem(
             value: 'annot_edit_text',
-            height: 40,
-            child: Row(
-              children: [
-                Icon(Icons.edit_outlined, size: 16),
-                SizedBox(width: 8),
-                Text('编辑文字', style: TextStyle(fontSize: AppTypography.body)),
-              ],
+            height: 36,
+            child: DesktopMenuItemRow(
+              icon: Icons.edit_outlined,
+              label: '编辑文字',
             ),
           ),
         const PopupMenuItem(
           value: 'annot_copy',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(Icons.copy_rounded, size: 16),
-              SizedBox(width: 8),
-              Text('复制批注', style: TextStyle(fontSize: AppTypography.body)),
-            ],
+          height: 36,
+          child: DesktopMenuItemRow(
+            icon: Icons.copy_rounded,
+            label: '复制批注',
+            shortcut: 'Ctrl+C',
           ),
         ),
         const PopupMenuItem(
           value: 'annot_dup',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(Icons.control_point_duplicate_rounded, size: 16),
-              SizedBox(width: 8),
-              Text('创建副本', style: TextStyle(fontSize: AppTypography.body)),
-            ],
+          height: 36,
+          child: DesktopMenuItemRow(
+            icon: Icons.control_point_duplicate_rounded,
+            label: '创建副本',
+            shortcut: 'Ctrl+D',
           ),
         ),
         PopupMenuItem(
           value: 'annot_top',
           enabled: !isMulti && ctrl.selectedZOrderCapability().canUp,
-          height: 40,
-          child: const Row(
-            children: [
-              Icon(Icons.vertical_align_top_rounded, size: 16),
-              SizedBox(width: 8),
-              Text('置于顶层', style: TextStyle(fontSize: AppTypography.body)),
-            ],
+          height: 36,
+          child: const DesktopMenuItemRow(
+            icon: Icons.vertical_align_top_rounded,
+            label: '置于顶层',
           ),
         ),
         PopupMenuItem(
           value: 'annot_bottom',
           enabled: !isMulti && ctrl.selectedZOrderCapability().canDown,
-          height: 40,
-          child: const Row(
-            children: [
-              Icon(Icons.vertical_align_bottom_rounded, size: 16),
-              SizedBox(width: 8),
-              Text('置于底层', style: TextStyle(fontSize: AppTypography.body)),
-            ],
+          height: 36,
+          child: const DesktopMenuItemRow(
+            icon: Icons.vertical_align_bottom_rounded,
+            label: '置于底层',
           ),
         ),
         PopupMenuItem(
           value: 'annot_lock',
           enabled: !isMulti,
-          height: 40,
-          child: Row(
-            children: [
-              Icon(
-                annot.locked
-                    ? Icons.lock_open_rounded
-                    : Icons.lock_outline_rounded,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                annot.locked ? '解锁批注' : '锁定批注',
-                style: const TextStyle(fontSize: AppTypography.body),
-              ),
-            ],
+          height: 36,
+          child: DesktopMenuItemRow(
+            icon: annot.locked
+                ? Icons.lock_open_rounded
+                : Icons.lock_outline_rounded,
+            label: annot.locked ? '解锁批注' : '锁定批注',
           ),
         ),
         const PopupMenuItem(
           value: 'annot_delete',
-          height: 40,
-          child: Row(
-            children: [
-              Icon(
-                Icons.delete_outline_rounded,
-                size: 16,
-                color: Colors.redAccent,
-              ),
-              SizedBox(width: 8),
-              Text(
-                '删除批注',
-                style: TextStyle(
-                  fontSize: AppTypography.body,
-                  color: Colors.redAccent,
-                ),
-              ),
-            ],
+          height: 36,
+          child: DesktopMenuItemRow(
+            icon: Icons.delete_outline_rounded,
+            label: '删除批注',
+            shortcut: 'Del',
+            danger: true,
           ),
         ),
-        const PopupMenuDivider(),
+        const PopupMenuDivider(height: 9),
       ],
       PopupMenuItem(
         enabled: false,
-        height: 32,
+        height: 30,
         child: Text(
           '第 ${pageZeroBased + 1} 页',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: AppTypography.caption,
             fontWeight: FontWeight.w700,
+            color: context.appColors.mutedText,
           ),
         ),
       ),
       PopupMenuItem(
         value: 'page_rot_cw',
         enabled: !ctrl.encrypted && !ctrl.isBusy,
-        height: 40,
-        child: const Row(
-          children: [
-            Icon(Icons.rotate_right_rounded, size: 16),
-            SizedBox(width: 8),
-            Text(
-              '顺时针旋转此页 90°',
-              style: TextStyle(fontSize: AppTypography.body),
-            ),
-          ],
+        height: 36,
+        child: const DesktopMenuItemRow(
+          icon: Icons.rotate_right_rounded,
+          label: '顺时针旋转此页 90°',
         ),
       ),
       PopupMenuItem(
         value: 'page_rot_ccw',
         enabled: !ctrl.encrypted && !ctrl.isBusy,
-        height: 40,
-        child: const Row(
-          children: [
-            Icon(Icons.rotate_left_rounded, size: 16),
-            SizedBox(width: 8),
-            Text(
-              '逆时针旋转此页 90°',
-              style: TextStyle(fontSize: AppTypography.body),
-            ),
-          ],
+        height: 36,
+        child: const DesktopMenuItemRow(
+          icon: Icons.rotate_left_rounded,
+          label: '逆时针旋转此页 90°',
         ),
       ),
       PopupMenuItem(
         value: 'page_insert_blank',
         enabled: !ctrl.encrypted && !ctrl.isBusy,
-        height: 40,
-        child: const Row(
-          children: [
-            Icon(Icons.note_add_outlined, size: 16),
-            SizedBox(width: 8),
-            Text(
-              '在此页后插入空白页',
-              style: TextStyle(fontSize: AppTypography.body),
-            ),
-          ],
+        height: 36,
+        child: const DesktopMenuItemRow(
+          icon: Icons.note_add_outlined,
+          label: '在此页后插入空白页',
         ),
       ),
       PopupMenuItem(
         value: 'page_extract',
         enabled: !ctrl.isBusy,
-        height: 40,
-        child: const Row(
-          children: [
-            Icon(Icons.content_cut_rounded, size: 16),
-            SizedBox(width: 8),
-            Text(
-              '提取此页为 PDF',
-              style: TextStyle(fontSize: AppTypography.body),
-            ),
-          ],
+        height: 36,
+        child: const DesktopMenuItemRow(
+          icon: Icons.content_cut_rounded,
+          label: '提取此页为 PDF',
         ),
       ),
       PopupMenuItem(
         value: 'page_export_png',
         enabled: !ctrl.isBusy,
-        height: 40,
-        child: const Row(
-          children: [
-            Icon(Icons.image_outlined, size: 16),
-            SizedBox(width: 8),
-            Text(
-              '导出此页为 PNG',
-              style: TextStyle(fontSize: AppTypography.body),
-            ),
-          ],
+        height: 36,
+        child: const DesktopMenuItemRow(
+          icon: Icons.image_outlined,
+          label: '导出此页为 PNG',
         ),
       ),
       PopupMenuItem(
         value: 'page_delete',
         enabled: !ctrl.encrypted && !ctrl.isBusy && ctrl.pageCount > 1,
-        height: 40,
-        child: Row(
-          children: [
-            const Icon(
-              Icons.delete_sweep_outlined,
-              size: 16,
-              color: Colors.redAccent,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              ctrl.encrypted
-                  ? '删除此页（加密文档不可删）'
-                  : ctrl.pageCount <= 1
-                      ? '删除此页（至少保留 1 页）'
-                      : '删除此页…',
-              style: const TextStyle(
-                fontSize: AppTypography.body,
-                color: Colors.redAccent,
-              ),
-            ),
-          ],
+        height: 36,
+        child: DesktopMenuItemRow(
+          icon: Icons.delete_sweep_outlined,
+          label: ctrl.encrypted
+              ? '删除此页（加密文档不可删）'
+              : ctrl.pageCount <= 1
+                  ? '删除此页（至少保留 1 页）'
+                  : '删除此页…',
+          danger: true,
         ),
       ),
     ];

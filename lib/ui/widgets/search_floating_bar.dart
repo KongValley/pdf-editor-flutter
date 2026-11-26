@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../state/editor_controller.dart';
 import '../theme/app_theme.dart';
+import 'hover_feedback.dart';
 
 class SearchFloatingBar extends StatefulWidget {
   const SearchFloatingBar({
@@ -160,52 +161,95 @@ class _SearchFloatingBarState extends State<SearchFloatingBar> {
                   ),
                 ),
                 if (counter.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: noMatch
+                          ? const Color(0x1FD97706)
+                          : c.subtleFill,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                     child: Text(
                       counter,
                       style: TextStyle(
                         fontSize: AppTypography.caption,
-                        color: noMatch ? const Color(0xFFD97706) : c.mutedText,
-                        fontWeight: noMatch ? FontWeight.w600 : FontWeight.w400,
+                        color: noMatch ? AppTheme.warning : c.mutedText,
+                        fontWeight: noMatch ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
                   ),
-                IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 18),
+                _SearchIconBtn(
+                  icon: Icons.keyboard_arrow_up_rounded,
                   tooltip: '上一条 (Shift+F3)',
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                  onPressed: count > 0 ? ctrl.prevSearchMatch : null,
+                  enabled: count > 0,
+                  onTap: ctrl.prevSearchMatch,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                const SizedBox(width: 2),
+                _SearchIconBtn(
+                  icon: Icons.keyboard_arrow_down_rounded,
                   tooltip: '下一条 (F3)',
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                  onPressed: count > 0 ? ctrl.nextSearchMatch : null,
+                  enabled: count > 0,
+                  onTap: ctrl.nextSearchMatch,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 17),
+                const SizedBox(width: 2),
+                _SearchIconBtn(
+                  icon: Icons.close_rounded,
+                  iconSize: 16,
                   tooltip: '关闭 (Esc)',
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                  padding: EdgeInsets.zero,
-                  onPressed: ctrl.toggleSearch,
+                  enabled: true,
+                  onTap: ctrl.toggleSearch,
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _SearchIconBtn extends StatelessWidget {
+  const _SearchIconBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.enabled,
+    required this.onTap,
+    this.iconSize = 18,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final bool enabled;
+  final VoidCallback onTap;
+  final double iconSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    return DesktopHoverContainer(
+      tooltip: tooltip,
+      semanticLabel: tooltip,
+      enabled: enabled,
+      onTap: enabled ? onTap : null,
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      hoverColor: c.hoverFill,
+      hoverBorderColor: c.hoverBorder,
+      pressedColor: c.accentSoft,
+      builder: (context, hovered, _) => Center(
+        child: Icon(
+          icon,
+          size: iconSize,
+          color: !enabled
+              ? c.mutedText.withValues(alpha: 0.35)
+              : hovered
+                  ? c.accent
+                  : c.mutedText,
+        ),
+      ),
     );
   }
 }

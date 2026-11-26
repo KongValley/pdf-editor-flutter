@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../state/editor_controller.dart';
 import '../layout/workspace_breakpoints.dart';
 import '../theme/app_theme.dart';
+import 'desktop_controls.dart';
 import 'hover_feedback.dart';
 
 class ModernTopBar extends StatelessWidget {
@@ -115,30 +116,19 @@ class ModernTopBar extends StatelessWidget {
                 itemBuilder: (_) => const [
                   PopupMenuItem(
                     value: 'cur_png',
-                    height: 40,
-                    child: Row(
-                      children: [
-                        Icon(Icons.image_outlined, size: 17),
-                        SizedBox(width: 8),
-                        Text(
-                          '导出当前页 PNG',
-                          style: TextStyle(fontSize: AppTypography.body),
-                        ),
-                      ],
+                    height: 36,
+                    child: DesktopMenuItemRow(
+                      icon: Icons.image_outlined,
+                      label: '导出当前页 PNG',
                     ),
                   ),
                   PopupMenuItem(
                     value: 'range_export',
-                    height: 40,
-                    child: Row(
-                      children: [
-                        Icon(Icons.collections_outlined, size: 17),
-                        SizedBox(width: 8),
-                        Text(
-                          '按页码范围导出 (Ctrl+E)…',
-                          style: TextStyle(fontSize: AppTypography.body),
-                        ),
-                      ],
+                    height: 36,
+                    child: DesktopMenuItemRow(
+                      icon: Icons.collections_outlined,
+                      label: '按页码范围导出…',
+                      shortcut: 'Ctrl+E',
                     ),
                   ),
                 ],
@@ -172,7 +162,8 @@ class ModernTopBar extends StatelessWidget {
                             color: fg,
                           ),
                         ),
-                        Icon(Icons.arrow_drop_down, size: 16, color: fg),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            size: 16, color: fg),
                       ],
                     );
                   },
@@ -223,8 +214,8 @@ class ModernTopBar extends StatelessWidget {
                   PopupMenuItem(
                     value: 'img2pdf',
                     enabled: !busy,
-                    height: 40,
-                    child: const _MenuLabel(
+                    height: 36,
+                    child: const DesktopMenuItemRow(
                       icon: Icons.photo_library_outlined,
                       label: '图片转 PDF',
                     ),
@@ -232,8 +223,8 @@ class ModernTopBar extends StatelessWidget {
                   PopupMenuItem(
                     value: 'merge',
                     enabled: !busy,
-                    height: 40,
-                    child: const _MenuLabel(
+                    height: 36,
+                    child: const DesktopMenuItemRow(
                       icon: Icons.merge_type_rounded,
                       label: '合并 PDF',
                     ),
@@ -241,18 +232,19 @@ class ModernTopBar extends StatelessWidget {
                   PopupMenuItem(
                     value: 'save_as',
                     enabled: hasDoc && !busy,
-                    height: 40,
-                    child: const _MenuLabel(
+                    height: 36,
+                    child: const DesktopMenuItemRow(
                       icon: Icons.save_as_outlined,
-                      label: '另存为 (Ctrl+Shift+S)',
+                      label: '另存为',
+                      shortcut: 'Ctrl+Shift+S',
                     ),
                   ),
                   if (density == TopBarDensity.ultraCompact) ...[
                     PopupMenuItem(
                       value: 'export_cur_png',
                       enabled: hasDoc && !busy,
-                      height: 40,
-                      child: const _MenuLabel(
+                      height: 36,
+                      child: const DesktopMenuItemRow(
                         icon: Icons.image_outlined,
                         label: '导出当前页 PNG',
                       ),
@@ -260,46 +252,50 @@ class ModernTopBar extends StatelessWidget {
                     PopupMenuItem(
                       value: 'export_range',
                       enabled: hasDoc && !busy,
-                      height: 40,
-                      child: const _MenuLabel(
+                      height: 36,
+                      child: const DesktopMenuItemRow(
                         icon: Icons.collections_outlined,
-                        label: '按页码范围导出 (Ctrl+E)…',
+                        label: '按页码范围导出…',
+                        shortcut: 'Ctrl+E',
                       ),
                     ),
                   ],
                   PopupMenuItem(
                     value: 'print',
                     enabled: hasDoc && !busy,
-                    height: 40,
-                    child: const _MenuLabel(
+                    height: 36,
+                    child: const DesktopMenuItemRow(
                       icon: Icons.print_outlined,
-                      label: '打印 (Ctrl+P)',
+                      label: '打印',
+                      shortcut: 'Ctrl+P',
                     ),
                   ),
-                  const PopupMenuDivider(),
+                  const PopupMenuDivider(height: 9),
                   PopupMenuItem(
                     value: 'rot_left',
                     enabled: hasDoc && !busy,
-                    height: 40,
-                    child: const _MenuLabel(
+                    height: 36,
+                    child: const DesktopMenuItemRow(
                       icon: Icons.rotate_left_rounded,
-                      label: '视图左旋 90° ([)',
+                      label: '视图左旋 90°',
+                      shortcut: '[',
                     ),
                   ),
                   PopupMenuItem(
                     value: 'rot_right',
                     enabled: hasDoc && !busy,
-                    height: 40,
-                    child: const _MenuLabel(
+                    height: 36,
+                    child: const DesktopMenuItemRow(
                       icon: Icons.rotate_right_rounded,
-                      label: '视图右旋 90° (])',
+                      label: '视图右旋 90°',
+                      shortcut: ']',
                     ),
                   ),
-                  const PopupMenuDivider(),
+                  const PopupMenuDivider(height: 9),
                   PopupMenuItem(
                     value: 'theme',
-                    height: 40,
-                    child: _MenuLabel(
+                    height: 36,
+                    child: DesktopMenuItemRow(
                       icon: controller.isDarkMode
                           ? Icons.light_mode_outlined
                           : Icons.dark_mode_outlined,
@@ -308,8 +304,8 @@ class ModernTopBar extends StatelessWidget {
                   ),
                   const PopupMenuItem(
                     value: 'about',
-                    height: 40,
-                    child: _MenuLabel(
+                    height: 36,
+                    child: DesktopMenuItemRow(
                       icon: Icons.info_outline_rounded,
                       label: '关于与环境自检',
                     ),
@@ -560,24 +556,6 @@ class ModernTopBar extends StatelessWidget {
           },
         ),
       ),
-    );
-  }
-}
-
-class _MenuLabel extends StatelessWidget {
-  const _MenuLabel({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 17),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontSize: AppTypography.body)),
-      ],
     );
   }
 }

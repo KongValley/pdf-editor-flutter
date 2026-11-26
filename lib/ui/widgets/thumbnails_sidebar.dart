@@ -4,6 +4,7 @@ import 'package:pdfrx/pdfrx.dart';
 import '../../state/editor_controller.dart';
 import '../layout/workspace_breakpoints.dart';
 import '../theme/app_theme.dart';
+import 'desktop_controls.dart';
 import 'hover_feedback.dart';
 
 class ThumbnailsSidebar extends StatefulWidget {
@@ -345,34 +346,34 @@ class _ThumbnailsSidebarState extends State<ThumbnailsSidebar> {
                             itemBuilder: (_) => [
                               const PopupMenuItem(
                                 value: 'extract',
-                                height: 40,
-                                child: _SidebarMenuItem(
+                                height: 36,
+                                child: DesktopMenuItemRow(
                                   icon: Icons.content_cut_rounded,
                                   label: '提取页面为 PDF…',
                                 ),
                               ),
                               const PopupMenuItem(
                                 value: 'split',
-                                height: 40,
-                                child: _SidebarMenuItem(
+                                height: 36,
+                                child: DesktopMenuItemRow(
                                   icon: Icons.call_split_rounded,
                                   label: '拆分 PDF…',
                                 ),
                               ),
                               const PopupMenuItem(
                                 value: 'export',
-                                height: 40,
-                                child: _SidebarMenuItem(
+                                height: 36,
+                                child: DesktopMenuItemRow(
                                   icon: Icons.ios_share_rounded,
                                   label: '导出页面 / 图片…',
                                 ),
                               ),
-                              const PopupMenuDivider(),
+                              const PopupMenuDivider(height: 9),
                               PopupMenuItem(
                                 value: 'orientation',
                                 enabled: !encrypted,
-                                height: 40,
-                                child: const _SidebarMenuItem(
+                                height: 36,
+                                child: const DesktopMenuItemRow(
                                   icon: Icons.auto_fix_high_rounded,
                                   label: '统一页面方向…',
                                 ),
@@ -380,8 +381,8 @@ class _ThumbnailsSidebarState extends State<ThumbnailsSidebar> {
                               PopupMenuItem(
                                 value: 'page_num',
                                 enabled: !encrypted,
-                                height: 40,
-                                child: const _SidebarMenuItem(
+                                height: 36,
+                                child: const DesktopMenuItemRow(
                                   icon: Icons.format_list_numbered_rounded,
                                   label: '添加页码…',
                                 ),
@@ -389,17 +390,17 @@ class _ThumbnailsSidebarState extends State<ThumbnailsSidebar> {
                               PopupMenuItem(
                                 value: 'watermark',
                                 enabled: !encrypted,
-                                height: 40,
-                                child: const _SidebarMenuItem(
+                                height: 36,
+                                child: const DesktopMenuItemRow(
                                   icon: Icons.branding_watermark_outlined,
                                   label: '添加水印…',
                                 ),
                               ),
-                              const PopupMenuDivider(),
+                              const PopupMenuDivider(height: 9),
                               const PopupMenuItem(
                                 value: 'merge',
-                                height: 40,
-                                child: _SidebarMenuItem(
+                                height: 36,
+                                child: DesktopMenuItemRow(
                                   icon: Icons.merge_type_rounded,
                                   label: '合并其他 PDF…',
                                 ),
@@ -525,23 +526,6 @@ class _ThumbnailsSidebarState extends State<ThumbnailsSidebar> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SidebarMenuItem extends StatelessWidget {
-  const _SidebarMenuItem({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 17),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontSize: AppTypography.body)),
-      ],
     );
   }
 }
@@ -703,16 +687,10 @@ class _ThumbTile extends StatelessWidget {
                             hoverBorderColor: c.hoverBorder,
                             builder: (context, _, _) => Center(
                               child: IgnorePointer(
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: Checkbox(
-                                    value: isChecked,
-                                    onChanged: (_) {},
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    visualDensity: VisualDensity.compact,
-                                  ),
+                                child: DesktopCheckbox(
+                                  value: isChecked,
+                                  onChanged: (_) {},
+                                  size: 17,
                                 ),
                               ),
                             ),

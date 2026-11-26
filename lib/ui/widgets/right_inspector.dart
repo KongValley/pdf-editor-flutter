@@ -7,6 +7,7 @@ import '../../state/editor_controller.dart';
 import '../../utils/page_range.dart';
 import '../layout/workspace_breakpoints.dart';
 import '../theme/app_theme.dart';
+import 'desktop_controls.dart';
 import 'hover_feedback.dart';
 
 class RightInspector extends StatelessWidget {
@@ -283,15 +284,12 @@ class _PropertiesTabState extends State<_PropertiesTab> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: ctrl.deleteSelectedAnnotations,
+                        style: AppTheme.dangerOutlinedButtonStyle(c),
                         icon: const Icon(
                           Icons.delete_outline_rounded,
                           size: 16,
-                          color: Color(0xFFDC2626),
                         ),
-                        label: const Text(
-                          '删除',
-                          style: TextStyle(color: Color(0xFFDC2626)),
-                        ),
+                        label: const Text('删除'),
                       ),
                     ),
                   ],
@@ -655,10 +653,9 @@ class _PropertiesTabState extends State<_PropertiesTab> {
                 TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
           ),
           const SizedBox(height: 6),
-          DropdownButtonFormField<String?>(
+          DesktopSelect<String?>(
             isExpanded: true,
-            decoration: AppTheme.compactInputDecoration(c),
-            initialValue: ctrl.systemFonts.any((f) => f.family == ann.fontFamily)
+            value: ctrl.systemFonts.any((f) => f.family == ann.fontFamily)
                 ? ann.fontFamily
                 : null,
             items: [
@@ -666,6 +663,7 @@ class _PropertiesTabState extends State<_PropertiesTab> {
                 value: null,
                 child: Text(
                   '默认中文字体',
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontSize: AppTypography.body),
                 ),
               ),
@@ -769,18 +767,12 @@ class _PropertiesTabState extends State<_PropertiesTab> {
 
         OutlinedButton.icon(
           onPressed: ctrl.deleteSelectedAnnotations,
+          style: AppTheme.dangerOutlinedButtonStyle(c),
           icon: const Icon(
             Icons.delete_outline_rounded,
             size: 16,
-            color: Color(0xFFDC2626),
           ),
-          label: const Text(
-            '删除此批注',
-            style: TextStyle(
-              color: Color(0xFFDC2626),
-              fontSize: AppTypography.body,
-            ),
-          ),
+          label: const Text('删除此批注'),
         ),
       ],
     );
@@ -933,50 +925,83 @@ class _AnnotationsListTab extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           child: Row(
             children: [
-              ChoiceChip(
-                label: Text(
-                  controller.listCurrentPageOnly ? '当前页' : '全部页',
-                  style: const TextStyle(fontSize: AppTypography.body),
-                ),
-                selected: controller.listCurrentPageOnly,
-                onSelected: (v) {
-                  controller.listCurrentPageOnly = v;
+              DesktopHoverContainer(
+                tooltip: controller.listCurrentPageOnly
+                    ? '当前仅显示本页批注（点击查看全部页）'
+                    : '当前显示全部页批注（点击仅看当前页）',
+                active: controller.listCurrentPageOnly,
+                onTap: () {
+                  controller.listCurrentPageOnly =
+                      !controller.listCurrentPageOnly;
                   controller.refresh();
                 },
-                visualDensity: VisualDensity.compact,
+                minHeight: 34,
+                borderRadius: 7,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                baseColor: c.subtleFill,
+                borderColor: c.border,
+                activeColor: c.accentSoft,
+                activeBorderColor: c.accent.withValues(alpha: 0.45),
+                hoverColor: c.hoverFill,
+                hoverBorderColor: c.hoverBorder,
+                pressedColor: c.accentSoft,
+                builder: (context, hovered, _) {
+                  final active = controller.listCurrentPageOnly;
+                  final fg = (active || hovered)
+                      ? c.accent
+                      : Theme.of(context).colorScheme.onSurface;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        active
+                            ? Icons.filter_alt_rounded
+                            : Icons.layers_outlined,
+                        size: 15,
+                        color: fg,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        active ? '当前页' : '全部页',
+                        style: TextStyle(
+                          fontSize: AppTypography.body,
+                          fontWeight: (active || hovered)
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: fg,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: DesktopHoverDropdownShell(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<AnnotationKind?>(
-                      isDense: true,
-                      isExpanded: true,
-                      value: controller.listKindFilter,
-                      style: TextStyle(
-                        fontSize: AppTypography.body,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      items: [
-                        const DropdownMenuItem<AnnotationKind?>(
-                          value: null,
-                          child: Text('全部类型'),
-                        ),
-                        for (final k in AnnotationKind.values)
-                          DropdownMenuItem<AnnotationKind?>(
-                            value: k,
-                            child: Text(k.label),
-                          ),
-                      ],
-                      onChanged: (v) {
-                        controller.listKindFilter = v;
-                        controller.refresh();
-                      },
+                child: DesktopSelect<AnnotationKind?>(
+                  isExpanded: true,
+                  minHeight: 34,
+                  borderRadius: 7,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  value: controller.listKindFilter,
+                  items: [
+                    const DropdownMenuItem<AnnotationKind?>(
+                      value: null,
+                      child: Text('全部类型'),
                     ),
-                  ),
+                    for (final k in AnnotationKind.values)
+                      DropdownMenuItem<AnnotationKind?>(
+                        value: k,
+                        child: Text(k.label),
+                      ),
+                  ],
+                  onChanged: (v) {
+                    controller.listKindFilter = v;
+                    controller.refresh();
+                  },
                 ),
               ),
             ],
@@ -994,49 +1019,96 @@ class _AnnotationsListTab extends StatelessWidget {
                     ),
                   ),
                 )
-              : ListView.builder(
+              : ListView.separated(
+                  padding: const EdgeInsets.all(8),
                   itemCount: items.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 5),
                   itemBuilder: (_, index) {
                     final ann = items[index];
                     final selected = controller.selectedIds.contains(ann.id);
-                    return ListTile(
-                      dense: true,
-                      selected: selected,
-                      selectedTileColor: c.accentSoft.withValues(alpha: 0.65),
-                      leading: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: hexToColor(ann.color),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      title: Text(
-                        ann.summary,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: AppTypography.body),
-                      ),
-                      subtitle: Text(
-                        '${ann.kind.label} · 第 ${ann.page + 1} 页',
-                        style: TextStyle(
-                          fontSize: AppTypography.caption,
-                          color: c.mutedText,
-                        ),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 16),
-                        constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
-                        ),
-                        tooltip: '删除',
-                        onPressed: () =>
-                            controller.deleteAnnotationById(ann.id),
-                      ),
+                    return DesktopHoverContainer(
+                      active: selected,
                       onTap: () {
                         controller.jumpToPage(ann.page + 1);
                         controller.selectAnnotation(ann.id);
                       },
+                      borderRadius: 8,
+                      padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+                      baseColor: c.subtleFill.withValues(alpha: 0.65),
+                      borderColor: c.border.withValues(alpha: 0.6),
+                      activeColor: c.accentSoft.withValues(alpha: 0.72),
+                      activeBorderColor: c.accent.withValues(alpha: 0.5),
+                      hoverColor: c.hoverFill,
+                      hoverBorderColor: c.hoverBorder,
+                      pressedColor: c.accentSoft,
+                      scaleOnPress: 0.99,
+                      builder: (context, hovered, _) => Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: hexToColor(ann.color),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.black.withValues(alpha: 0.16),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  ann.summary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: AppTypography.body,
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    color: selected
+                                        ? c.accent
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 1),
+                                Text(
+                                  '${ann.kind.label} · 第 ${ann.page + 1} 页',
+                                  style: TextStyle(
+                                    fontSize: AppTypography.caption,
+                                    color: c.mutedText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          DesktopHoverContainer(
+                            tooltip: '删除',
+                            onTap: () =>
+                                controller.deleteAnnotationById(ann.id),
+                            width: 28,
+                            height: 28,
+                            borderRadius: 6,
+                            hoverColor: const Color(0x18DC2626),
+                            hoverBorderColor: const Color(0x55DC2626),
+                            pressedColor: const Color(0x2ADC2626),
+                            builder: (context, btnHover, _) => Center(
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 15,
+                                color:
+                                    btnHover ? AppTheme.danger : c.mutedText,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),

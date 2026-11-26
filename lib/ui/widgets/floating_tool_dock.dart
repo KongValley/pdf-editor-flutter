@@ -6,6 +6,7 @@ import '../../models/annotation_model.dart';
 import '../../services/system_fonts_service.dart';
 import '../../state/editor_controller.dart';
 import '../theme/app_theme.dart';
+import 'desktop_controls.dart';
 import 'hover_feedback.dart';
 
 class FloatingToolDock extends StatefulWidget {
@@ -485,35 +486,12 @@ class _FloatingToolDockState extends State<FloatingToolDock> {
                   for (final t in overflowTools)
                     PopupMenuItem(
                       value: t,
-                      height: 40,
-                      child: Row(
-                        children: [
-                          Icon(
-                            _toolIcons[t],
-                            size: 17,
-                            color: controller.tool == t ? c.accent : null,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              t.label,
-                              style: TextStyle(
-                                fontSize: AppTypography.body,
-                                fontWeight: controller.tool == t
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: controller.tool == t ? c.accent : null,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            t.shortcutKey,
-                            style: TextStyle(
-                              fontSize: AppTypography.caption,
-                              color: c.mutedText,
-                            ),
-                          ),
-                        ],
+                      height: 36,
+                      child: DesktopMenuItemRow(
+                        icon: _toolIcons[t],
+                        label: t.label,
+                        shortcut: t.shortcutKey,
+                        selected: controller.tool == t,
                       ),
                     ),
                 ],
@@ -664,55 +642,49 @@ class _FloatingToolDockState extends State<FloatingToolDock> {
                     color: c.mutedText,
                   ),
                 ),
-                DesktopHoverDropdownShell(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<StampPreset>(
-                      isDense: true,
-                      value: controller.stampPreset,
-                      style: TextStyle(
-                        fontSize: AppTypography.body,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      onTap: () {
-                        _dropdownOpen = true;
-                        _collapseTimer?.cancel();
-                      },
-                      items: [
-                        for (final preset in StampPreset.values)
-                          DropdownMenuItem(
-                            value: preset,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: Color(preset.colorValue),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(preset.label),
-                              ],
+                DesktopSelect<StampPreset>(
+                  minHeight: 30,
+                  borderRadius: 6,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  value: controller.stampPreset,
+                  onTap: () {
+                    _dropdownOpen = true;
+                    _collapseTimer?.cancel();
+                  },
+                  items: [
+                    for (final preset in StampPreset.values)
+                      DropdownMenuItem(
+                        value: preset,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: Color(preset.colorValue),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                      ],
-                      onChanged: (v) {
-                        _dropdownOpen = false;
-                        if (v != null) {
-                          controller.stampPreset = v;
-                          controller.refresh();
-                        }
-                        if (controller.autoCollapseDock &&
-                            !_hovered &&
-                            !_hasFocus &&
-                            !hasSelection) {
-                          _scheduleCollapse(_leaveCollapseDelay);
-                        }
-                      },
-                    ),
-                  ),
+                            const SizedBox(width: 6),
+                            Text(preset.label),
+                          ],
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) {
+                    _dropdownOpen = false;
+                    if (v != null) {
+                      controller.stampPreset = v;
+                      controller.refresh();
+                    }
+                    if (controller.autoCollapseDock &&
+                        !_hovered &&
+                        !_hasFocus &&
+                        !hasSelection) {
+                      _scheduleCollapse(_leaveCollapseDelay);
+                    }
+                  },
                 ),
               ],
               if (showFontOptions) ...[
@@ -725,66 +697,61 @@ class _FloatingToolDockState extends State<FloatingToolDock> {
                 ),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 210),
-                  child: DesktopHoverDropdownShell(
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String?>(
-                        isDense: true,
-                        isExpanded: true,
-                        value: controller.systemFonts.any(
-                          (f) => f.family == controller.defaultFontFamily,
-                        )
-                            ? controller.defaultFontFamily
-                            : null,
-                        hint: const Text(
-                          '默认中文字体',
-                          style: TextStyle(fontSize: AppTypography.body),
-                        ),
-                        style: TextStyle(
-                          fontSize: AppTypography.body,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        onTap: () {
-                          _dropdownOpen = true;
-                          _collapseTimer?.cancel();
-                        },
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text(
-                              '默认中文字体',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          for (final f in controller.systemFonts)
-                            DropdownMenuItem<String?>(
-                              value: f.family,
-                              child: Text(
-                                f.label,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                        onChanged: (v) async {
-                          _dropdownOpen = false;
-                          if (v != null) {
-                            final face = await SystemFontsService.findFont(v);
-                            if (face != null) {
-                              await SystemFontsService.ensureFlutterFontLoaded(
-                                face,
-                              );
-                            }
-                          }
-                          controller.defaultFontFamily = v;
-                          controller.refresh();
-                          if (controller.autoCollapseDock &&
-                              !_hovered &&
-                              !_hasFocus &&
-                              !hasSelection) {
-                            _scheduleCollapse(_leaveCollapseDelay);
-                          }
-                        },
-                      ),
+                  child: DesktopSelect<String?>(
+                    isExpanded: true,
+                    minHeight: 30,
+                    borderRadius: 6,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    value: controller.systemFonts.any(
+                      (f) => f.family == controller.defaultFontFamily,
+                    )
+                        ? controller.defaultFontFamily
+                        : null,
+                    hint: const Text(
+                      '默认中文字体',
+                      style: TextStyle(fontSize: AppTypography.body),
                     ),
+                    onTap: () {
+                      _dropdownOpen = true;
+                      _collapseTimer?.cancel();
+                    },
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          '默认中文字体',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      for (final f in controller.systemFonts)
+                        DropdownMenuItem<String?>(
+                          value: f.family,
+                          child: Text(
+                            f.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (v) async {
+                      _dropdownOpen = false;
+                      if (v != null) {
+                        final face = await SystemFontsService.findFont(v);
+                        if (face != null) {
+                          await SystemFontsService.ensureFlutterFontLoaded(
+                            face,
+                          );
+                        }
+                      }
+                      controller.defaultFontFamily = v;
+                      controller.refresh();
+                      if (controller.autoCollapseDock &&
+                          !_hovered &&
+                          !_hasFocus &&
+                          !hasSelection) {
+                        _scheduleCollapse(_leaveCollapseDelay);
+                      }
+                    },
                   ),
                 ),
               ],

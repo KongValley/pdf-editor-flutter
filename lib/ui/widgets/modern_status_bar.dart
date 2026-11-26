@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/annotation_model.dart';
 import '../../state/editor_controller.dart';
 import '../theme/app_theme.dart';
+import 'desktop_controls.dart';
 import 'hover_feedback.dart';
 
 class ModernStatusBar extends StatefulWidget {
@@ -397,65 +398,54 @@ class _ModernStatusBarState extends State<ModernStatusBar> {
                                 itemBuilder: (_) => [
                                   PopupMenuItem(
                                     value: 'continuous',
-                                    height: 40,
-                                    child: Text(
-                                      '连续滚动 (Ctrl+1)',
-                                      style: TextStyle(
-                                        fontSize: AppTypography.body,
-                                        fontWeight: ctrl.viewMode ==
-                                                ReadingViewMode.continuous
-                                            ? FontWeight.w700
-                                            : FontWeight.w400,
-                                      ),
+                                    height: 36,
+                                    child: DesktopMenuItemRow(
+                                      icon: Icons.view_day_outlined,
+                                      label: '连续滚动',
+                                      shortcut: 'Ctrl+1',
+                                      selected: ctrl.viewMode ==
+                                          ReadingViewMode.continuous,
                                     ),
                                   ),
                                   PopupMenuItem(
                                     value: 'single',
-                                    height: 40,
-                                    child: Text(
-                                      '单页阅览 (Ctrl+2)',
-                                      style: TextStyle(
-                                        fontSize: AppTypography.body,
-                                        fontWeight: ctrl.viewMode ==
-                                                ReadingViewMode.single
-                                            ? FontWeight.w700
-                                            : FontWeight.w400,
-                                      ),
+                                    height: 36,
+                                    child: DesktopMenuItemRow(
+                                      icon: Icons.crop_portrait_rounded,
+                                      label: '单页阅览',
+                                      shortcut: 'Ctrl+2',
+                                      selected: ctrl.viewMode ==
+                                          ReadingViewMode.single,
                                     ),
                                   ),
                                   PopupMenuItem(
                                     value: 'twoPage',
-                                    height: 40,
-                                    child: Text(
-                                      '双页对开 (Ctrl+3)',
-                                      style: TextStyle(
-                                        fontSize: AppTypography.body,
-                                        fontWeight: ctrl.viewMode ==
-                                                ReadingViewMode.twoPage
-                                            ? FontWeight.w700
-                                            : FontWeight.w400,
-                                      ),
+                                    height: 36,
+                                    child: DesktopMenuItemRow(
+                                      icon: Icons.menu_book_outlined,
+                                      label: '双页对开',
+                                      shortcut: 'Ctrl+3',
+                                      selected: ctrl.viewMode ==
+                                          ReadingViewMode.twoPage,
                                     ),
                                   ),
-                                  const PopupMenuDivider(),
+                                  const PopupMenuDivider(height: 9),
                                   PopupMenuItem(
                                     value: 'rot_ccw',
                                     enabled: !ctrl.encrypted && !ctrl.isBusy,
-                                    height: 40,
-                                    child: const Text(
-                                      '左旋当前页 90°',
-                                      style: TextStyle(
-                                          fontSize: AppTypography.body),
+                                    height: 36,
+                                    child: const DesktopMenuItemRow(
+                                      icon: Icons.rotate_90_degrees_ccw_rounded,
+                                      label: '左旋当前页 90°',
                                     ),
                                   ),
                                   PopupMenuItem(
                                     value: 'rot_cw',
                                     enabled: !ctrl.encrypted && !ctrl.isBusy,
-                                    height: 40,
-                                    child: const Text(
-                                      '右旋当前页 90°',
-                                      style: TextStyle(
-                                          fontSize: AppTypography.body),
+                                    height: 36,
+                                    child: const DesktopMenuItemRow(
+                                      icon: Icons.rotate_90_degrees_cw_rounded,
+                                      label: '右旋当前页 90°',
                                     ),
                                   ),
                                 ],
@@ -486,7 +476,7 @@ class _ModernStatusBarState extends State<ModernStatusBar> {
                                         ),
                                       ),
                                       Icon(
-                                        Icons.arrow_drop_down,
+                                        Icons.keyboard_arrow_down_rounded,
                                         size: 16,
                                         color:
                                             hovered ? c.accent : c.mutedText,
@@ -534,15 +524,10 @@ class _ModernStatusBarState extends State<ModernStatusBar> {
                                 ])
                                   PopupMenuItem(
                                     value: pct,
-                                    height: 40,
-                                    child: Text(
-                                      '${pct.toInt()}%',
-                                      style: TextStyle(
-                                        fontSize: AppTypography.body,
-                                        fontWeight: zoomPct == pct.toInt()
-                                            ? FontWeight.w700
-                                            : FontWeight.w400,
-                                      ),
+                                    height: 36,
+                                    child: DesktopMenuItemRow(
+                                      label: '${pct.toInt()}%',
+                                      selected: zoomPct == pct.toInt(),
                                     ),
                                   ),
                               ],
@@ -557,7 +542,7 @@ class _ModernStatusBarState extends State<ModernStatusBar> {
                                 pressedColor: c.accentSoft,
                                 builder: (context, hovered, pressed) => Center(
                                   child: Icon(
-                                    Icons.arrow_drop_down,
+                                    Icons.keyboard_arrow_down_rounded,
                                     size: 18,
                                     color: hovered
                                         ? c.accent

@@ -8,6 +8,7 @@ import 'package:pdf_editor_flutter/state/editor_controller.dart';
 import 'package:pdf_editor_flutter/ui/dialogs/batch_dialogs.dart';
 import 'package:pdf_editor_flutter/ui/dialogs/editor_dialogs.dart';
 import 'package:pdf_editor_flutter/ui/theme/app_theme.dart';
+import 'package:pdf_editor_flutter/ui/widgets/desktop_controls.dart';
 import 'package:pdf_editor_flutter/ui/widgets/floating_tool_dock.dart';
 import 'package:pdf_editor_flutter/ui/widgets/hover_feedback.dart';
 import 'package:pdf_editor_flutter/ui/widgets/modern_status_bar.dart';
@@ -391,5 +392,107 @@ void main() {
 
     expect(ctrl.tool, EditorTool.stamp);
     expect(find.text('图章:'), findsOneWidget);
+  });
+
+  testWidgets(
+      'AppTheme and custom desktop controls replace raw Material styling in light & dark themes',
+      (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final dark in [false, true]) {
+      final theme = AppTheme.build(dark);
+      final ext = dark ? AppColors.dark : AppColors.light;
+      expect(theme.splashFactory, NoSplash.splashFactory);
+      expect(theme.colorScheme.primary, ext.accent);
+      expect(theme.colorScheme.surface, ext.surfaceBg);
+      expect(theme.popupMenuTheme.color, ext.elevatedBg);
+      expect(theme.popupMenuTheme.surfaceTintColor, Colors.transparent);
+      expect(theme.dialogTheme.surfaceTintColor, Colors.transparent);
+      expect(theme.sliderTheme.trackHeight, 4.0);
+      expect(theme.progressIndicatorTheme.linearMinHeight, 5.0);
+    }
+
+    var checked = false;
+    var mode = 'pixel';
+    var selected = 'a';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(true),
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DesktopDialogHeader(
+                    icon: Icons.tune_rounded,
+                    title: '桌面控件校验',
+                    subtitle: '深色主题自定义控件',
+                    onClose: () {},
+                  ),
+                  const SizedBox(height: 12),
+                  DesktopCheckboxRow(
+                    value: checked,
+                    label: '启用桌面勾选框',
+                    onChanged: (v) => setState(() => checked = v),
+                  ),
+                  const SizedBox(height: 12),
+                  DesktopSegmentedControl<String>(
+                    value: mode,
+                    options: const [
+                      DesktopSegmentedOption(value: 'pixel', label: '按像素'),
+                      DesktopSegmentedOption(value: 'a4', label: '按 A4'),
+                    ],
+                    onChanged: (v) => setState(() => mode = v),
+                  ),
+                  const SizedBox(height: 12),
+                  DesktopSelect<String>(
+                    value: selected,
+                    items: const [
+                      DropdownMenuItem(value: 'a', child: Text('选项 A')),
+                      DropdownMenuItem(value: 'b', child: Text('选项 B')),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setState(() => selected = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  const DesktopProgressPanel(
+                    message: '正在处理',
+                    detail: 'demo.pdf',
+                    progress: 0.5,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('50%'), findsOneWidget);
+    await tester.tap(find.text('启用桌面勾选框'));
+    await tester.pump();
+    expect(checked, isTrue);
+
+    await tester.tap(find.text('按 A4'));
+    await tester.pump();
+    expect(mode, 'a4');
+
+    await tester.tap(find.text('选项 A'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('选项 B').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(selected, 'b');
+    expect(tester.takeException(), isNull);
   });
 }

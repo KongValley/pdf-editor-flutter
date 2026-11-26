@@ -15,6 +15,7 @@ import '../../state/editor_controller.dart';
 import '../../utils/page_range.dart';
 import '../dialogs/editor_dialogs.dart' show DialogControllersHost;
 import '../theme/app_theme.dart';
+import 'desktop_controls.dart';
 import 'pdf_desktop_scrollbar.dart';
 
 class _PointerLatch {
@@ -1679,28 +1680,16 @@ class _PageAnnotationOverlayState extends State<_PageAnnotationOverlay> {
         builder: (ctx) {
           final c = ctx.appColors;
           return AlertDialog(
-            title: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: const Icon(
-                    Icons.sticky_note_2_outlined,
-                    size: 18,
-                    color: Color(0xFFD97706),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Text('便签内容',
-                    style: TextStyle(fontSize: AppTypography.title)),
-              ],
+            title: DesktopDialogHeader(
+              icon: Icons.sticky_note_2_outlined,
+              iconColor: AppTheme.warning,
+              iconBackground: const Color(0xFFF59E0B).withValues(alpha: 0.14),
+              title: '便签内容',
+              subtitle: '双击页面便签可随时修改备注内容',
+              onClose: () => Navigator.of(ctx).pop(null),
             ),
             content: SizedBox(
-              width: 380,
+              width: 390,
               child: TextField(
                 controller: textCtrl,
                 autofocus: true,
@@ -1709,11 +1698,6 @@ class _PageAnnotationOverlayState extends State<_PageAnnotationOverlay> {
                 decoration: AppTheme.compactInputDecoration(
                   c,
                   hintText: '输入便签备注...',
-                ).copyWith(
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: c.border),
-                  ),
                 ),
               ),
             ),
