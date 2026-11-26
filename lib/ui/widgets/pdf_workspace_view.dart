@@ -15,6 +15,7 @@ import '../../state/editor_controller.dart';
 import '../../utils/page_range.dart';
 import '../dialogs/editor_dialogs.dart' show DialogControllersHost;
 import '../theme/app_theme.dart';
+import 'pdf_desktop_scrollbar.dart';
 
 class _PointerLatch {
   bool consumedByOverlay = false;
@@ -383,6 +384,18 @@ class PdfWorkspaceViewState extends State<PdfWorkspaceView> {
                           ctrl.onViewerReady();
                           _onViewerMatrixChanged();
                         },
+                        viewerOverlayBuilder: (context, size, handleLinkTap) =>
+                            [
+                          Positioned.fill(
+                            child: PdfDesktopScrollbars(
+                              viewerController: ctrl.viewerController,
+                              pageCount: ctrl.pageCount,
+                              onPointerInteracting: () {
+                                _pointerLatch.consumedByOverlay = true;
+                              },
+                            ),
+                          ),
+                        ],
                         pageOverlaysBuilder: (context, pageRect, page) {
                           return [
                             Positioned.fill(

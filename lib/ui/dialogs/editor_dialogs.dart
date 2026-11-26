@@ -30,8 +30,13 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
     builder: (ctx) {
       final c = ctx.appColors;
       const dangerRed = Color(0xFFDC2626);
-      return AlertDialog(
-        titlePadding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              Navigator.of(ctx).pop(UnsavedChangesChoice.cancel),
+        },
+        child: AlertDialog(
+          titlePadding: const EdgeInsets.fromLTRB(22, 20, 22, 0),
         contentPadding: const EdgeInsets.fromLTRB(22, 14, 22, 12),
         title: Row(
           children: [
@@ -151,6 +156,7 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
             label: Text(saveLabel),
           ),
         ],
+      ),
       );
     },
   );
