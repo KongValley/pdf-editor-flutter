@@ -21,7 +21,8 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
   required String message,
   required String saveLabel,
   String? fileName,
-  bool barrierDismissible = true,
+  String? summary,
+  bool barrierDismissible = false,
 }) async {
   final res = await showDialog<UnsavedChangesChoice>(
     context: context,
@@ -60,7 +61,7 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
                       fileName,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: AppTypography.body,
+                        fontSize: AppTypography.caption,
                         fontWeight: FontWeight.w400,
                         color: c.mutedText,
                       ),
@@ -73,13 +74,45 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
         ),
         content: SizedBox(
           width: 400,
-          child: Text(
-            message,
-            style: TextStyle(
-              fontSize: AppTypography.body,
-              height: 1.55,
-              color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.88),
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (summary != null && summary.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 7,
+                  ),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: c.subtleFill,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: c.border),
+                  ),
+                  child: Text(
+                    '未保存内容：$summary',
+                    style: TextStyle(
+                      fontSize: AppTypography.caption,
+                      color: c.mutedText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: AppTypography.body,
+                  height: 1.55,
+                  color: Theme.of(ctx)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.88),
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -112,6 +145,7 @@ Future<UnsavedChangesChoice> showUnsavedChangesDialog(
             child: const Text('不保存'),
           ),
           FilledButton.icon(
+            autofocus: true,
             onPressed: () => Navigator.of(ctx).pop(UnsavedChangesChoice.save),
             icon: const Icon(Icons.save_rounded, size: 16),
             label: Text(saveLabel),
@@ -246,7 +280,8 @@ Future<String?> showPasswordPromptDialog(
                     controller: ctrl,
                     obscureText: obscure,
                     autofocus: true,
-                    decoration: InputDecoration(
+                    decoration: AppTheme.compactInputDecoration(
+                      c,
                       hintText: '请输入文档打开密码',
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -342,7 +377,8 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                   TextField(
                     controller: rangeCtrl,
                     autofocus: true,
-                    decoration: InputDecoration(
+                    decoration: AppTheme.compactInputDecoration(
+                      ctx.appColors,
                       hintText: '1-$totalPages',
                       errorText: valid ? null : '请输入有效的 1-$totalPages 范围',
                     ),
@@ -375,6 +411,7 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                     const SizedBox(height: 6),
                     DropdownButtonFormField<ExportFormatChoice>(
                       initialValue: exportFormat,
+                      decoration: AppTheme.compactInputDecoration(ctx.appColors),
                       items: const [
                         DropdownMenuItem(
                           value: ExportFormatChoice.pdf,
@@ -405,6 +442,7 @@ Future<PageRangeDialogResult?> showPageRangeDialog(
                     const SizedBox(height: 6),
                     DropdownButtonFormField<PrintQuality>(
                       initialValue: printQuality,
+                      decoration: AppTheme.compactInputDecoration(ctx.appColors),
                       items: [
                         for (final q in PrintQuality.values)
                           DropdownMenuItem(value: q, child: Text(q.label)),
@@ -908,7 +946,7 @@ Future<void> showAboutSelfCheckDialog(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'PDF 编辑器 v2.0.0（Flutter + PDFium 原生桌面版）',
+                    'PDF 编辑器 v2.1.0（Flutter + PDFium 原生桌面版）',
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: AppTypography.body,

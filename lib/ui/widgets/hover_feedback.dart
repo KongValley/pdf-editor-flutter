@@ -85,17 +85,23 @@ class _HoverStateBuilderState extends State<HoverStateBuilder> {
   }
 }
 
-/// 统一的桌面触感胶囊 / 卡片按钮容器（自带悬停底色、描边、阴影与按压微缩反馈）
-class DesktopHoverContainer extends StatelessWidget {
+/// 统一的桌面触感胶囊 / 卡片按钮容器（自带悬停底色、描边、阴影、键盘焦点圈与按压微缩反馈）
+class DesktopHoverContainer extends StatefulWidget {
   const DesktopHoverContainer({
     super.key,
     required this.builder,
     this.tooltip,
+    this.semanticLabel,
     this.onTap,
     this.enabled = true,
     this.active = false,
+    this.focusable = true,
+    this.focusNode,
+    this.onFocusChange,
     this.width,
     this.height,
+    this.minWidth,
+    this.minHeight,
     this.padding = EdgeInsets.zero,
     this.borderRadius = 7.0,
     this.baseColor = Colors.transparent,
@@ -111,11 +117,17 @@ class DesktopHoverContainer extends StatelessWidget {
 
   final Widget Function(BuildContext context, bool hovered, bool pressed) builder;
   final String? tooltip;
+  final String? semanticLabel;
   final VoidCallback? onTap;
   final bool enabled;
   final bool active;
+  final bool focusable;
+  final FocusNode? focusNode;
+  final ValueChanged<bool>? onFocusChange;
   final double? width;
   final double? height;
+  final double? minWidth;
+  final double? minHeight;
   final EdgeInsetsGeometry padding;
   final double borderRadius;
   final Color baseColor;
@@ -129,67 +141,171 @@ class DesktopHoverContainer extends StatelessWidget {
   final double scaleOnPress;
 
   @override
+  State<DesktopHoverContainer> createState() => _DesktopHoverContainerState();
+}
+
+class _DesktopHoverContainerState extends State<DesktopHoverContainer> {
+  bool _focused = false;
+
+  @override
+  void didUpdateWidget(covariant DesktopHoverContainer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _focused) {
+      _focused = false;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final resolvedHoverBg = hoverColor ?? cs.primary.withValues(alpha: 0.12);
+    final appColors = Theme.of(context).extension<AppColors>();
+    final focusRingColor = appColors?.accent ?? cs.primary;
+    final resolvedHoverBg = widget.hoverColor ?? cs.primary.withValues(alpha: 0.12);
     final resolvedPressedBg =
-        pressedColor ?? cs.primary.withValues(alpha: 0.22);
-    final resolvedActiveBg = activeColor ?? cs.primary.withValues(alpha: 0.14);
+        widget.pressedColor ?? cs.primary.withValues(alpha: 0.22);
+    final resolvedActiveBg =
+        widget.activeColor ?? cs.primary.withValues(alpha: 0.14);
     final resolvedHoverBorder =
-        hoverBorderColor ?? cs.primary.withValues(alpha: 0.48);
+        widget.hoverBorderColor ?? cs.primary.withValues(alpha: 0.48);
     final resolvedActiveBorder =
-        activeBorderColor ?? cs.primary.withValues(alpha: 0.45);
+        widget.activeBorderColor ?? cs.primary.withValues(alpha: 0.45);
+    // Use same-hue 0-alpha endpoints instead of Colors.transparent (0x00000000)
+    // so AnimatedContainer color lerping never passes through dark gray.
+    final resolvedBaseBg = widget.baseColor.a == 0
+        ? resolvedHoverBg.withValues(alpha: 0)
+        : widget.baseColor;
+    final resolvedBaseBorder = widget.borderColor.a == 0
+        ? resolvedHoverBorder.withValues(alpha: 0)
+        : widget.borderColor;
+
+    final canFocus =
+        widget.focusable && widget.enabled && widget.onTap != null;
 
     Widget content = HoverStateBuilder(
-      enabled: enabled,
-      onTap: onTap,
+      enabled: widget.enabled,
+      onTap: widget.onTap,
       builder: (context, hovered, pressed) {
-        final bg = !enabled
-            ? baseColor
+        final showFocus = canFocus && _focused;
+        final bg = !widget.enabled
+            ? resolvedBaseBg
             : pressed
                 ? resolvedPressedBg
                 : hovered
-                    ? (active
+                    ? (widget.active
                         ? Color.alphaBlend(
                             cs.primary.withValues(alpha: 0.08),
                             resolvedActiveBg,
                           )
                         : resolvedHoverBg)
-                    : active
+                    : widget.active
                         ? resolvedActiveBg
-                        : baseColor;
-        final bColor = !enabled
-            ? borderColor
-            : (hovered || pressed)
-                ? resolvedHoverBorder
-                : active
-                    ? resolvedActiveBorder
-                    : borderColor;
+                        : resolvedBaseBg;
+        final bColor = !widget.enabled
+            ? resolvedBaseBorder
+            : showFocus
+                ? focusRingColor
+                : (hovered || pressed)
+                    ? resolvedHoverBorder
+                    : widget.active
+                        ? resolvedActiveBorder
+                        : resolvedBaseBorder;
+
+        final List<BoxShadow>? shadows = showFocus
+            ? [
+                BoxShadow(
+                  color: focusRingColor.withValues(alpha: 0.42),
+                  spreadRadius: 1.5,
+                  blurRadius: 0,
+                ),
+                if (widget.hoverShadow != null && hovered && !pressed)
+                  ...widget.hoverShadow!,
+              ]
+            : (widget.enabled && hovered && !pressed)
+                ? widget.hoverShadow
+                : null;
+
+        final BoxConstraints? constraints =
+            (widget.minWidth != null || widget.minHeight != null)
+                ? BoxConstraints(
+                    minWidth: widget.minWidth ?? 0,
+                    minHeight: widget.minHeight ?? 0,
+                  )
+                : null;
+
+        final innerChild = widget.builder(context, hovered, pressed);
 
         return AnimatedScale(
-          scale: (enabled && pressed) ? scaleOnPress : 1.0,
+          scale: (widget.enabled && pressed) ? widget.scaleOnPress : 1.0,
           duration: const Duration(milliseconds: 85),
           curve: Curves.easeOut,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 110),
+            duration: Duration(milliseconds: (hovered || pressed) ? 55 : 75),
             curve: Curves.easeOutCubic,
-            width: width,
-            height: height,
-            padding: padding,
+            width: widget.width,
+            height: widget.height,
+            constraints: constraints,
+            padding: widget.padding,
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(color: bColor, width: 1),
-              boxShadow: (enabled && hovered && !pressed) ? hoverShadow : null,
+              borderRadius: BorderRadius.circular(widget.borderRadius),
+              border: Border.all(
+                color: bColor,
+                width: showFocus ? 1.8 : 1,
+              ),
+              boxShadow: shadows,
             ),
-            child: builder(context, hovered, pressed),
+            child: (widget.minWidth != null || widget.minHeight != null)
+                ? Center(
+                    widthFactor: 1.0,
+                    heightFactor: 1.0,
+                    child: innerChild,
+                  )
+                : innerChild,
           ),
         );
       },
     );
 
-    if (tooltip != null && tooltip!.isNotEmpty) {
-      content = Tooltip(message: tooltip!, child: content);
+    if (canFocus) {
+      content = FocusableActionDetector(
+        focusNode: widget.focusNode,
+        enabled: true,
+        onShowFocusHighlight: (focused) {
+          if (_focused != focused && mounted) {
+            setState(() => _focused = focused);
+          }
+          widget.onFocusChange?.call(focused);
+        },
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap?.call();
+              return null;
+            },
+          ),
+          ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap?.call();
+              return null;
+            },
+          ),
+        },
+        child: content,
+      );
+    }
+
+    if (widget.onTap != null || widget.semanticLabel != null) {
+      content = Semantics(
+        button: widget.onTap != null,
+        enabled: widget.enabled,
+        selected: widget.active,
+        label: widget.semanticLabel ?? widget.tooltip,
+        child: content,
+      );
+    }
+
+    if (widget.tooltip != null && widget.tooltip!.isNotEmpty) {
+      content = Tooltip(message: widget.tooltip!, child: content);
     }
     return content;
   }

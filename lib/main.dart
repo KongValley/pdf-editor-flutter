@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' show AppExitResponse;
 
 import 'package:collection/collection.dart';
@@ -17,6 +18,7 @@ import 'services/recent_and_log_service.dart';
 import 'state/editor_controller.dart';
 import 'ui/dialogs/batch_dialogs.dart';
 import 'ui/dialogs/editor_dialogs.dart';
+import 'ui/layout/workspace_breakpoints.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/widgets/floating_tool_dock.dart';
 import 'ui/widgets/modern_status_bar.dart';
@@ -102,9 +104,13 @@ class PdfEditorShell extends StatefulWidget {
 
 class _PdfEditorShellState extends State<PdfEditorShell> {
   final GlobalKey<PdfWorkspaceViewState> _workspaceKey = GlobalKey();
+  final FocusNode _workspaceFocusNode = FocusNode(debugLabel: 'pdf_canvas');
   bool _draggingFilesOver = false;
   late final AppLifecycleListener _lifecycleListener;
   Future<bool>? _pendingCloseDecision;
+  WorkspaceLayoutSpec? _layoutSpec;
+  bool _lastLeftOverlay = false;
+  bool _lastRightOverlay = false;
 
   @override
   void initState() {
@@ -133,6 +139,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
 
   @override
   void dispose() {
+    _workspaceFocusNode.dispose();
     _lifecycleListener.dispose();
     NativeBridge.setCloseRequestHandler(null);
     HardwareKeyboard.instance.removeHandler(_onGlobalKey);
@@ -168,6 +175,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       context,
       title: '退出确认',
       fileName: ctrl.displayFileName,
+      summary: ctrl.unsavedSummary,
       message: '当前文档有未保存的修改，直接退出将丢失这些更改。是否在退出前保存？',
       saveLabel: '保存并退出',
       barrierDismissible: false,
@@ -178,11 +186,25 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
     return choice == UnsavedChangesChoice.discard;
   }
 
-  bool _isTextFieldFocused() {
+  EditableText? _focusedEditableText() {
     final ctx = FocusManager.instance.primaryFocus?.context;
-    if (ctx == null) return false;
-    if (ctx.widget is EditableText) return true;
-    return ctx.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (ctx == null) return null;
+    if (ctx.widget is EditableText) return ctx.widget as EditableText;
+    return ctx.findAncestorWidgetOfExactType<EditableText>();
+  }
+
+  bool _isTextFieldFocused() => _focusedEditableText() != null;
+
+  bool _isImeComposing() {
+    final editable = _focusedEditableText();
+    if (editable != null) {
+      final composing = editable.controller.value.composing;
+      if (composing.isValid && !composing.isCollapsed) {
+        return true;
+      }
+    }
+    return HardwareKeyboard.instance.logicalKeysPressed
+        .contains(LogicalKeyboardKey.process);
   }
 
   bool _onGlobalKey(KeyEvent event) {
@@ -191,6 +213,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
     if (modalActive) return false;
     final ctrl = widget.controller;
     final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.process) return false;
     final isCtrl = HardwareKeyboard.instance.isControlPressed;
     final isShift = HardwareKeyboard.instance.isShiftPressed;
     final isAlt = HardwareKeyboard.instance.isAltPressed;
@@ -200,8 +223,21 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       return true;
     }
 
+    if (key == LogicalKeyboardKey.f6 && ctrl.hasDocument) {
+      if (_workspaceFocusNode.hasFocus) {
+        FocusManager.instance.primaryFocus?.nextFocus();
+      } else {
+        _workspaceFocusNode.requestFocus();
+      }
+      return true;
+    }
+
     if (key == LogicalKeyboardKey.escape) {
+      if (_isImeComposing()) return false;
       if (ctrl.editingTextId != null) return false;
+      if (_layoutSpec != null && ctrl.closeOverlayPanels(_layoutSpec!)) {
+        return true;
+      }
       if (ctrl.searchOpen) {
         ctrl.toggleSearch();
         return true;
@@ -265,9 +301,9 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       }
       if (key == LogicalKeyboardKey.keyB) {
         if (isShift) {
-          ctrl.toggleRightPanel();
+          ctrl.toggleRightPanel(_layoutSpec);
         } else {
-          ctrl.toggleThumbnails();
+          ctrl.toggleThumbnails(_layoutSpec);
         }
         return true;
       }
@@ -387,7 +423,11 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         ctrl.jumpToPage(ctrl.pageCount);
         return true;
       }
-      if (ctrl.hasDocument && !isShift) {
+      // 单字母工具快捷键仅在画布拥有焦点且非输入法组字状态下响应，避免中文 IME 冲突
+      if (ctrl.hasDocument &&
+          !isShift &&
+          _workspaceFocusNode.hasFocus &&
+          !_isImeComposing()) {
         final mapped = switch (key) {
           LogicalKeyboardKey.keyV => EditorTool.select,
           LogicalKeyboardKey.keyH => EditorTool.highlight,
@@ -423,16 +463,26 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
     final ctrl = widget.controller;
     ctrl.flushPendingInlineEdits();
     if (!ctrl.dirty) return true;
-    final choice = await showUnsavedChangesDialog(
-      context,
-      title: '未保存的更改',
-      fileName: ctrl.displayFileName,
-      message: '当前文档有未保存的批注或页面修改，直接在打开新文档前切换将丢失更改。是否保存？',
-      saveLabel: '保存并继续',
-    );
-    if (choice == UnsavedChangesChoice.discard) return true;
-    if (choice == UnsavedChangesChoice.save) return await _handleSave();
-    return false;
+    while (ctrl.dirty) {
+      if (!mounted) return false;
+      final choice = await showUnsavedChangesDialog(
+        context,
+        title: '未保存的更改',
+        fileName: ctrl.displayFileName,
+        summary: ctrl.unsavedSummary,
+        message: '当前文档有未保存的批注或页面修改，切换新文档将丢失这些更改。是否先保存？',
+        saveLabel: '保存并继续',
+        barrierDismissible: false,
+      );
+      if (choice == UnsavedChangesChoice.discard) return true;
+      if (choice == UnsavedChangesChoice.cancel) return false;
+      if (choice == UnsavedChangesChoice.save) {
+        final saved = await _handleSave();
+        if (saved) return true;
+        // 保存失败则留在确认循环中，允许用户重试或取消
+      }
+    }
+    return !ctrl.dirty;
   }
 
   Future<void> _openPath(
@@ -600,7 +650,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
     );
   }
 
-  Future<void> _handleDeletePagesDialog() async {
+  Future<void> _handleDeletePagesDialog({String? initialRange}) async {
     final ctrl = widget.controller;
     if (!ctrl.hasDocument || ctrl.encrypted) return;
     final res = await showPageRangeDialog(
@@ -608,7 +658,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       totalPages: ctrl.pageCount,
       title: '删除页面',
       confirmLabel: '确认删除',
-      initialRange: _defaultRangeText(),
+      initialRange: initialRange ?? _defaultRangeText(),
     );
     if (res == null || res.pagesZeroBased.isEmpty) return;
     if (res.pagesZeroBased.length >= ctrl.pageCount) {
@@ -667,7 +717,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         if (annot.kind == AnnotationKind.text && !annot.locked)
           const PopupMenuItem(
             value: 'annot_edit_text',
-            height: 36,
+            height: 40,
             child: Row(
               children: [
                 Icon(Icons.edit_outlined, size: 16),
@@ -678,7 +728,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
           ),
         const PopupMenuItem(
           value: 'annot_copy',
-          height: 36,
+          height: 40,
           child: Row(
             children: [
               Icon(Icons.copy_rounded, size: 16),
@@ -689,7 +739,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         ),
         const PopupMenuItem(
           value: 'annot_dup',
-          height: 36,
+          height: 40,
           child: Row(
             children: [
               Icon(Icons.control_point_duplicate_rounded, size: 16),
@@ -701,7 +751,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         PopupMenuItem(
           value: 'annot_top',
           enabled: !isMulti && ctrl.selectedZOrderCapability().canUp,
-          height: 36,
+          height: 40,
           child: const Row(
             children: [
               Icon(Icons.vertical_align_top_rounded, size: 16),
@@ -713,7 +763,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         PopupMenuItem(
           value: 'annot_bottom',
           enabled: !isMulti && ctrl.selectedZOrderCapability().canDown,
-          height: 36,
+          height: 40,
           child: const Row(
             children: [
               Icon(Icons.vertical_align_bottom_rounded, size: 16),
@@ -725,11 +775,13 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         PopupMenuItem(
           value: 'annot_lock',
           enabled: !isMulti,
-          height: 36,
+          height: 40,
           child: Row(
             children: [
               Icon(
-                annot.locked ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                annot.locked
+                    ? Icons.lock_open_rounded
+                    : Icons.lock_outline_rounded,
                 size: 16,
               ),
               const SizedBox(width: 8),
@@ -742,10 +794,14 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         ),
         const PopupMenuItem(
           value: 'annot_delete',
-          height: 36,
+          height: 40,
           child: Row(
             children: [
-              Icon(Icons.delete_outline_rounded, size: 16, color: Colors.redAccent),
+              Icon(
+                Icons.delete_outline_rounded,
+                size: 16,
+                color: Colors.redAccent,
+              ),
               SizedBox(width: 8),
               Text(
                 '删除批注',
@@ -765,7 +821,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         child: Text(
           '第 ${pageZeroBased + 1} 页',
           style: const TextStyle(
-            fontSize: AppTypography.body,
+            fontSize: AppTypography.caption,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -773,79 +829,97 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       PopupMenuItem(
         value: 'page_rot_cw',
         enabled: !ctrl.encrypted && !ctrl.isBusy,
-        height: 36,
+        height: 40,
         child: const Row(
           children: [
             Icon(Icons.rotate_right_rounded, size: 16),
             SizedBox(width: 8),
-            Text('顺时针旋转此页 90°',
-                style: TextStyle(fontSize: AppTypography.body)),
+            Text(
+              '顺时针旋转此页 90°',
+              style: TextStyle(fontSize: AppTypography.body),
+            ),
           ],
         ),
       ),
       PopupMenuItem(
         value: 'page_rot_ccw',
         enabled: !ctrl.encrypted && !ctrl.isBusy,
-        height: 36,
+        height: 40,
         child: const Row(
           children: [
             Icon(Icons.rotate_left_rounded, size: 16),
             SizedBox(width: 8),
-            Text('逆时针旋转此页 90°',
-                style: TextStyle(fontSize: AppTypography.body)),
+            Text(
+              '逆时针旋转此页 90°',
+              style: TextStyle(fontSize: AppTypography.body),
+            ),
           ],
         ),
       ),
       PopupMenuItem(
         value: 'page_insert_blank',
         enabled: !ctrl.encrypted && !ctrl.isBusy,
-        height: 36,
+        height: 40,
         child: const Row(
           children: [
             Icon(Icons.note_add_outlined, size: 16),
             SizedBox(width: 8),
-            Text('在此页后插入空白页',
-                style: TextStyle(fontSize: AppTypography.body)),
+            Text(
+              '在此页后插入空白页',
+              style: TextStyle(fontSize: AppTypography.body),
+            ),
           ],
         ),
       ),
       PopupMenuItem(
         value: 'page_extract',
         enabled: !ctrl.isBusy,
-        height: 36,
+        height: 40,
         child: const Row(
           children: [
             Icon(Icons.content_cut_rounded, size: 16),
             SizedBox(width: 8),
-            Text('提取此页为 PDF',
-                style: TextStyle(fontSize: AppTypography.body)),
+            Text(
+              '提取此页为 PDF',
+              style: TextStyle(fontSize: AppTypography.body),
+            ),
           ],
         ),
       ),
       PopupMenuItem(
         value: 'page_export_png',
         enabled: !ctrl.isBusy,
-        height: 36,
+        height: 40,
         child: const Row(
           children: [
             Icon(Icons.image_outlined, size: 16),
             SizedBox(width: 8),
-            Text('导出此页为 PNG',
-                style: TextStyle(fontSize: AppTypography.body)),
+            Text(
+              '导出此页为 PNG',
+              style: TextStyle(fontSize: AppTypography.body),
+            ),
           ],
         ),
       ),
       PopupMenuItem(
         value: 'page_delete',
         enabled: !ctrl.encrypted && !ctrl.isBusy && ctrl.pageCount > 1,
-        height: 36,
-        child: const Row(
+        height: 40,
+        child: Row(
           children: [
-            Icon(Icons.delete_sweep_outlined, size: 16, color: Colors.redAccent),
-            SizedBox(width: 8),
+            const Icon(
+              Icons.delete_sweep_outlined,
+              size: 16,
+              color: Colors.redAccent,
+            ),
+            const SizedBox(width: 8),
             Text(
-              '删除此页',
-              style: TextStyle(
+              ctrl.encrypted
+                  ? '删除此页（加密文档不可删）'
+                  : ctrl.pageCount <= 1
+                      ? '删除此页（至少保留 1 页）'
+                      : '删除此页…',
+              style: const TextStyle(
                 fontSize: AppTypography.body,
                 color: Colors.redAccent,
               ),
@@ -929,7 +1003,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
         }
         break;
       case 'page_delete':
-        await ctrl.deletePages([pageZeroBased]);
+        await _handleDeletePagesDialog(initialRange: '${pageZeroBased + 1}');
         break;
     }
   }
@@ -978,112 +1052,258 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       onDragDone: _onFilesDropped,
       child: Scaffold(
         backgroundColor: c.canvasBg,
-        body: Stack(
-          children: [
-            Column(
-              children: [
-                ModernTopBar(
-                  controller: ctrl,
-                  onOpenFile: _handleOpenFile,
-                  onMergePdf: () => _handleMergePdf(),
-                  onImageToPdf: () => _handleImageToPdf(),
-                  onSave: _handleSave,
-                  onSaveAs: _handleSaveAs,
-                  onExportCurrentPng: _handleExportCurrentPng,
-                  onExportPagesDialog: _handleExportPagesDialog,
-                  onPrintDialog: _handlePrintDialog,
-                  onAbout: () => showAboutSelfCheckDialog(context, ctrl),
+        body: LayoutBuilder(
+          builder: (context, rootConstraints) {
+            final spec = WorkspaceLayoutSpec.fromSize(
+              Size(rootConstraints.maxWidth, rootConstraints.maxHeight),
+            );
+            final leftBecameOverlay = !_lastLeftOverlay && spec.leftIsOverlay;
+            final rightBecameOverlay =
+                !_lastRightOverlay && spec.rightIsOverlay;
+            _layoutSpec = spec;
+            _lastLeftOverlay = spec.leftIsOverlay;
+            _lastRightOverlay = spec.rightIsOverlay;
+            if (leftBecameOverlay || rightBecameOverlay) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  ctrl.syncPanelOverridesOnBreakpointChange(
+                    leftBecameOverlay: leftBecameOverlay,
+                    rightBecameOverlay: rightBecameOverlay,
+                  );
+                }
+              });
+            }
+
+            final leftOpen = ctrl.isThumbnailsOpenFor(spec);
+            final rightOpen = ctrl.isRightPanelOpenFor(spec);
+            final showLeftDocked = !spec.leftIsOverlay && leftOpen;
+            final showRightDocked = !spec.rightIsOverlay && rightOpen;
+            final showLeftOverlay = spec.leftIsOverlay && leftOpen;
+            final showRightOverlay = spec.rightIsOverlay && rightOpen;
+            final hasAnyOverlay = showLeftOverlay || showRightOverlay;
+
+            Widget buildThumbnails({required bool overlay}) {
+              return ThumbnailsSidebar(
+                controller: ctrl,
+                width: overlay
+                    ? WorkspaceLayoutSpec.overlayLeftWidth
+                    : WorkspaceLayoutSpec.dockedLeftWidth,
+                compact: spec.compactThumbnails,
+                isOverlay: overlay,
+                onClose: overlay ? () => ctrl.toggleThumbnails(spec) : null,
+                onDeleteDialog: _handleDeletePagesDialog,
+                onExtractDialog: _handleExtractPagesDialog,
+                onSplitDialog: () => showSplitDialog(context, ctrl),
+                onExportDialog: _handleExportPagesDialog,
+                onOrientationDialog: () =>
+                    showOrientationUnifyDialog(context, ctrl),
+                onPageNumberDialog: () => showPageNumberDialog(context, ctrl),
+                onWatermarkDialog: () => showWatermarkDialog(context, ctrl),
+                onMergeDialog: () => _handleMergePdf(),
+                onPageContextMenu: (pageZeroBased, pos) => _showContextMenu(
+                  pageZeroBased: pageZeroBased,
+                  globalPos: pos,
                 ),
-                Expanded(
-                  child: ctrl.hasDocument
-                      ? Row(
-                          children: [
-                            if (ctrl.showThumbnails)
-                              ThumbnailsSidebar(
-                                controller: ctrl,
-                                onDeleteDialog: _handleDeletePagesDialog,
-                                onExtractDialog: _handleExtractPagesDialog,
-                                onSplitDialog: () =>
-                                    showSplitDialog(context, ctrl),
-                                onExportDialog: _handleExportPagesDialog,
-                                onOrientationDialog: () =>
-                                    showOrientationUnifyDialog(context, ctrl),
-                                onPageNumberDialog: () =>
-                                    showPageNumberDialog(context, ctrl),
-                                onWatermarkDialog: () =>
-                                    showWatermarkDialog(context, ctrl),
-                                onMergeDialog: () => _handleMergePdf(),
-                                onPageContextMenu: (pageZeroBased, pos) =>
-                                    _showContextMenu(
-                                  pageZeroBased: pageZeroBased,
-                                  globalPos: pos,
-                                ),
-                              ),
-                            Expanded(
-                              child: Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: PdfWorkspaceView(
-                                      key: _workspaceKey,
-                                      controller: ctrl,
-                                      onContextMenu: (pIdx, pos, annotId) =>
-                                          _showContextMenu(
-                                        pageZeroBased: pIdx,
-                                        globalPos: pos,
-                                        annotId: annotId,
-                                      ),
-                                    ),
-                                  ),
-                                  // 居中顶部悬浮批注工具坞 + 右上角搜索条（纵向排布防止重叠）
-                                  Positioned(
-                                    top: 12,
-                                    left: 16,
-                                    right: 16,
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Center(
-                                          child: FloatingToolDock(
-                                            controller: ctrl,
-                                          ),
-                                        ),
-                                        if (ctrl.searchOpen)
-                                          Padding(
-                                            padding:
-                                                const EdgeInsets.only(top: 8),
-                                            child: Align(
-                                              alignment: Alignment.topRight,
-                                              child: SearchFloatingBar(
-                                                controller: ctrl,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (ctrl.showRightPanel)
-                              RightInspector(controller: ctrl),
-                          ],
-                        )
-                      : WelcomeView(
+              );
+            }
+
+            Widget buildInspector({required bool overlay}) {
+              return RightInspector(
+                controller: ctrl,
+                width: overlay
+                    ? WorkspaceLayoutSpec.overlayRightWidth
+                    : WorkspaceLayoutSpec.dockedRightWidth,
+                isOverlay: overlay,
+                onClose: overlay ? () => ctrl.toggleRightPanel(spec) : null,
+              );
+            }
+
+            return FocusTraversalGroup(
+              policy: OrderedTraversalPolicy(),
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(1),
+                        child: ModernTopBar(
                           controller: ctrl,
+                          thumbnailsActive: leftOpen,
+                          rightPanelActive: rightOpen,
+                          onToggleThumbnails: () => ctrl.toggleThumbnails(spec),
+                          onToggleRightPanel: () => ctrl.toggleRightPanel(spec),
                           onOpenFile: _handleOpenFile,
                           onMergePdf: () => _handleMergePdf(),
                           onImageToPdf: () => _handleImageToPdf(),
-                          onOpenPath: (path) => _openPath(path),
+                          onSave: _handleSave,
+                          onSaveAs: _handleSaveAs,
+                          onExportCurrentPng: _handleExportCurrentPng,
+                          onExportPagesDialog: _handleExportPagesDialog,
+                          onPrintDialog: _handlePrintDialog,
+                          onAbout: () => showAboutSelfCheckDialog(context, ctrl),
                         ),
-                ),
-                ModernStatusBar(
-                  controller: ctrl,
-                  onOpenProblems: () => showProblemsDialog(context, ctrl),
-                ),
-              ],
-            ),
+                      ),
+                      Expanded(
+                        child: ctrl.hasDocument
+                            ? Stack(
+                                children: [
+                                  Row(
+                                    children: [
+                                      if (showLeftDocked)
+                                        FocusTraversalOrder(
+                                          order: const NumericFocusOrder(2),
+                                          child:
+                                              buildThumbnails(overlay: false),
+                                        ),
+                                      Expanded(
+                                        child: LayoutBuilder(
+                                          builder: (context, canvasBox) {
+                                            final canvasW = canvasBox.maxWidth;
+                                            final shareTopBand =
+                                                ctrl.searchOpen &&
+                                                    canvasW >= 780;
+                                            final searchMaxW = math
+                                                .max(
+                                                  0.0,
+                                                  math.min(
+                                                    340.0,
+                                                    canvasW - 32.0,
+                                                  ),
+                                                )
+                                                .clamp(
+                                                  math.min(220.0, canvasW),
+                                                  340.0,
+                                                )
+                                                .toDouble();
+                                            return Stack(
+                                              children: [
+                                                Positioned.fill(
+                                                  child: FocusTraversalOrder(
+                                                    order:
+                                                        const NumericFocusOrder(
+                                                      3.5,
+                                                    ),
+                                                    child: PdfWorkspaceView(
+                                                      key: _workspaceKey,
+                                                      controller: ctrl,
+                                                      focusNode:
+                                                          _workspaceFocusNode,
+                                                      onContextMenu: (
+                                                        pIdx,
+                                                        pos,
+                                                        annotId,
+                                                      ) =>
+                                                          _showContextMenu(
+                                                        pageZeroBased: pIdx,
+                                                        globalPos: pos,
+                                                        annotId: annotId,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                // 悬浮批注工具坞（独立定位，宽画布与搜索条同带排布不叠高）
+                                                Positioned(
+                                                  top: 12,
+                                                  left: 16,
+                                                  right: shareTopBand
+                                                      ? searchMaxW + 28
+                                                      : 16,
+                                                  child: FocusTraversalOrder(
+                                                    order:
+                                                        const NumericFocusOrder(
+                                                      3.0,
+                                                    ),
+                                                    child: Align(
+                                                      alignment: shareTopBand
+                                                          ? Alignment.topLeft
+                                                          : Alignment.topCenter,
+                                                      child: FloatingToolDock(
+                                                        controller: ctrl,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (ctrl.searchOpen)
+                                                  Positioned(
+                                                    top: shareTopBand ? 12 : 62,
+                                                    right: 16,
+                                                    child: FocusTraversalOrder(
+                                                      order:
+                                                          const NumericFocusOrder(
+                                                        3.8,
+                                                      ),
+                                                      child: SearchFloatingBar(
+                                                        controller: ctrl,
+                                                        maxWidth: searchMaxW,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      if (showRightDocked)
+                                        FocusTraversalOrder(
+                                          order: const NumericFocusOrder(4),
+                                          child: buildInspector(overlay: false),
+                                        ),
+                                    ],
+                                  ),
+                                  // 窄屏/中屏覆盖抽屉遮罩（不挤压画布，不触发缩放跳变）
+                                  if (hasAnyOverlay)
+                                    Positioned.fill(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () =>
+                                            ctrl.closeOverlayPanels(spec),
+                                        child: Container(
+                                          color: Colors.black.withValues(
+                                            alpha: ctrl.isDarkMode ? 0.42 : 0.2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  if (showLeftOverlay)
+                                    Positioned(
+                                      top: 0,
+                                      bottom: 0,
+                                      left: 0,
+                                      child: FocusTraversalOrder(
+                                        order: const NumericFocusOrder(2),
+                                        child: buildThumbnails(overlay: true),
+                                      ),
+                                    ),
+                                  if (showRightOverlay)
+                                    Positioned(
+                                      top: 0,
+                                      bottom: 0,
+                                      right: 0,
+                                      child: FocusTraversalOrder(
+                                        order: const NumericFocusOrder(4),
+                                        child: buildInspector(overlay: true),
+                                      ),
+                                    ),
+                                ],
+                              )
+                            : WelcomeView(
+                                controller: ctrl,
+                                onOpenFile: _handleOpenFile,
+                                onMergePdf: () => _handleMergePdf(),
+                                onImageToPdf: () => _handleImageToPdf(),
+                                onOpenPath: (path) => _openPath(path),
+                              ),
+                      ),
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(5),
+                        child: ModernStatusBar(
+                          controller: ctrl,
+                          onOpenProblems: () =>
+                              showProblemsDialog(context, ctrl),
+                        ),
+                      ),
+                    ],
+                  ),
 
             // 加载 / 批处理状态提示气泡
             if (ctrl.isBusy || ctrl.loading)
@@ -1206,7 +1426,10 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                   ),
                 ),
               ),
-          ],
+                ],
+              ),
+            );
+          },
         ),
       ),
     );

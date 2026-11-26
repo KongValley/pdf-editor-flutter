@@ -1,21 +1,22 @@
 import 'dart:math' as math;
 
 enum EditorTool {
-  select('选择', '选择 / 移动批注与选区复制'),
-  highlight('高亮', '高亮：划选文本或拖拽框选'),
-  rect('矩形', '矩形框'),
-  ellipse('椭圆', '椭圆框'),
-  ink('画笔', '自由绘制'),
-  arrow('箭头', '箭头标注'),
-  measure('测量', '距离测量 (mm)'),
-  text('文字', '插入文字批注'),
-  note('便签', '插入便签'),
-  stamp('图章', '插入图章'),
-  image('图片', '插入图片 (PNG/JPEG)');
+  select('选择', '选择 / 移动批注与选区复制 (V)', 'V'),
+  highlight('高亮', '高亮：划选文本或拖拽框选 (H)', 'H'),
+  rect('矩形', '矩形框 (R)', 'R'),
+  ellipse('椭圆', '椭圆框 (O)', 'O'),
+  ink('画笔', '自由绘制 (P)', 'P'),
+  arrow('箭头', '箭头标注 (A)', 'A'),
+  measure('测量', '距离测量 mm (M)', 'M'),
+  text('文字', '插入文字批注 (T)', 'T'),
+  note('便签', '插入便签 (N)', 'N'),
+  stamp('图章', '插入图章 (S)', 'S'),
+  image('图片', '插入图片 PNG/JPEG (I)', 'I');
 
-  const EditorTool(this.label, this.tooltip);
+  const EditorTool(this.label, this.tooltip, this.shortcutKey);
   final String label;
   final String tooltip;
+  final String shortcutKey;
 
   bool get isDrawTool => this != EditorTool.select;
 
@@ -177,7 +178,7 @@ const List<String> kAnnotationPalette = [
 ];
 
 const Map<AnnotationKind, ToolStyleDefaults> kToolDefaults = {
-  AnnotationKind.highlight: ToolStyleDefaults(colorHex: '#ffe066', opacity: 0.4, thickness: 1, fontSize: 14),
+  AnnotationKind.highlight: ToolStyleDefaults(colorHex: '#ffe066', opacity: 0.26, thickness: 1, fontSize: 14),
   AnnotationKind.rect: ToolStyleDefaults(colorHex: '#e03131', opacity: 1.0, thickness: 1.5, fontSize: 14),
   AnnotationKind.ellipse: ToolStyleDefaults(colorHex: '#e03131', opacity: 1.0, thickness: 1.5, fontSize: 14),
   AnnotationKind.ink: ToolStyleDefaults(colorHex: '#e03131', opacity: 1.0, thickness: 2.0, fontSize: 14),

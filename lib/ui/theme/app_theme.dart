@@ -80,7 +80,7 @@ class AppColors extends ThemeExtension<AppColors> {
     canvasBg: Color(0xFFE5E9F0),
     elevatedBg: Color(0xFFFCFDFF),
     border: Color(0xFFDDE2EB),
-    mutedText: Color(0xFF64748B),
+    mutedText: Color(0xFF526075),
     subtleFill: Color(0xFFF1F5F9),
     hoverFill: Color(0xFFE7EFFD),
     hoverBorder: Color(0xFF93C5FD),
@@ -97,8 +97,8 @@ class AppColors extends ThemeExtension<AppColors> {
     mutedText: Color(0xFF94A3B8),
     subtleFill: Color(0xFF262B38),
     hoverFill: Color(0xFF2A364F),
-    hoverBorder: Color(0xFF4F7AC7),
-    accent: Color(0xFF3B82F6),
+    hoverBorder: Color(0xFF60A5FA),
+    accent: Color(0xFF60A5FA),
     accentSoft: Color(0xFF1E3A5F),
   );
 }
@@ -106,8 +106,12 @@ class AppColors extends ThemeExtension<AppColors> {
 class AppTypography {
   AppTypography._();
 
+  static const double display = 20;
   static const double title = 16;
   static const double body = 14;
+  static const double caption = 12;
+
+  static const List<double> allowedSizes = [caption, body, title, display];
 
   static TextStyle _withSize(TextStyle? style, double size, {FontWeight? weight}) {
     return (style ?? const TextStyle()).copyWith(
@@ -118,21 +122,21 @@ class AppTypography {
 
   static TextTheme unifyTextTheme(TextTheme base) {
     return TextTheme(
-      displayLarge: _withSize(base.displayLarge, title),
-      displayMedium: _withSize(base.displayMedium, title),
-      displaySmall: _withSize(base.displaySmall, title),
-      headlineLarge: _withSize(base.headlineLarge, title),
-      headlineMedium: _withSize(base.headlineMedium, title),
-      headlineSmall: _withSize(base.headlineSmall, title),
+      displayLarge: _withSize(base.displayLarge, display, weight: FontWeight.w700),
+      displayMedium: _withSize(base.displayMedium, display, weight: FontWeight.w700),
+      displaySmall: _withSize(base.displaySmall, display, weight: FontWeight.w600),
+      headlineLarge: _withSize(base.headlineLarge, display, weight: FontWeight.w700),
+      headlineMedium: _withSize(base.headlineMedium, title, weight: FontWeight.w700),
+      headlineSmall: _withSize(base.headlineSmall, title, weight: FontWeight.w600),
       titleLarge: _withSize(base.titleLarge, title, weight: FontWeight.w600),
-      titleMedium: _withSize(base.titleMedium, body),
-      titleSmall: _withSize(base.titleSmall, body),
+      titleMedium: _withSize(base.titleMedium, body, weight: FontWeight.w600),
+      titleSmall: _withSize(base.titleSmall, body, weight: FontWeight.w500),
       bodyLarge: _withSize(base.bodyLarge, body),
       bodyMedium: _withSize(base.bodyMedium, body),
-      bodySmall: _withSize(base.bodySmall, body),
+      bodySmall: _withSize(base.bodySmall, caption),
       labelLarge: _withSize(base.labelLarge, body),
-      labelMedium: _withSize(base.labelMedium, body),
-      labelSmall: _withSize(base.labelSmall, body),
+      labelMedium: _withSize(base.labelMedium, caption),
+      labelSmall: _withSize(base.labelSmall, caption),
     );
   }
 }
@@ -274,19 +278,17 @@ class AppTheme {
           color: base.colorScheme.onSurface,
         ),
         subtitleTextStyle: TextStyle(
-          fontSize: AppTypography.body,
+          fontSize: AppTypography.caption,
           color: ext.mutedText,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
-        isDense: true,
-        filled: true,
-        fillColor: ext.subtleFill,
+        filled: false,
         labelStyle: const TextStyle(fontSize: AppTypography.body),
         floatingLabelStyle: const TextStyle(fontSize: AppTypography.body),
         hintStyle: TextStyle(fontSize: AppTypography.body, color: ext.mutedText),
-        helperStyle: const TextStyle(fontSize: AppTypography.body),
-        errorStyle: const TextStyle(fontSize: AppTypography.body),
+        helperStyle: const TextStyle(fontSize: AppTypography.caption),
+        errorStyle: const TextStyle(fontSize: AppTypography.caption),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(7),
           borderSide: BorderSide(color: ext.border),
@@ -295,8 +297,33 @@ class AppTheme {
           borderRadius: BorderRadius.circular(7),
           borderSide: BorderSide(color: ext.border),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(7),
+          borderSide: BorderSide(color: ext.accent, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
       ),
+    );
+  }
+
+  /// Compact filled decoration for fields without a floating border label.
+  static InputDecoration compactInputDecoration(
+    AppColors colors, {
+    String? hintText,
+    String? errorText,
+    Widget? suffixIcon,
+    bool isDense = true,
+    EdgeInsetsGeometry contentPadding =
+        const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+  }) {
+    return InputDecoration(
+      isDense: isDense,
+      filled: true,
+      fillColor: colors.subtleFill,
+      hintText: hintText,
+      errorText: errorText,
+      suffixIcon: suffixIcon,
+      contentPadding: contentPadding,
     );
   }
 }

@@ -21,6 +21,9 @@ import '../services/pdf_engine_service.dart';
 import '../services/recent_and_log_service.dart';
 import '../services/sidecar_service.dart';
 import '../services/system_fonts_service.dart';
+import '../ui/layout/workspace_breakpoints.dart';
+
+enum ZoomIntent { fitWidth, fitPage, manual }
 
 sealed class _UndoEntry {
   const _UndoEntry();
@@ -95,6 +98,10 @@ class EditorController extends ChangeNotifier {
 
   bool showThumbnails = true;
   bool showRightPanel = true;
+  bool _dockedThumbnailsOpen = true;
+  bool _dockedRightPanelOpen = true;
+  bool _overlayThumbnailsOpen = false;
+  bool _overlayRightPanelOpen = false;
   int rightPanelTab = 0; // 0: 属性, 1: 注释列表, 2: 大纲
   bool searchOpen = false;
   int searchFocusSeq = 0;
@@ -102,6 +109,8 @@ class EditorController extends ChangeNotifier {
   int dockExpandSeq = 0;
   bool isFullscreen = false;
   bool isDarkMode = false;
+  ZoomIntent zoomIntent = ZoomIntent.fitWidth;
+  bool _needsInitialAutoFit = false;
 
   String? busyMessage;
   String? toastMessage;
@@ -307,7 +316,55 @@ class EditorController extends ChangeNotifier {
   }
 
   void onViewerReady() {
+    final hadRestoreZoom = _pendingRestoreZoom != null;
     _tryApplyPendingRestore();
+    if (_needsInitialAutoFit && !hadRestoreZoom) {
+      _needsInitialAutoFit = false;
+      applyAutoFitForViewport();
+    }
+  }
+
+  /// 按当前视口和缩放意图执行自动适配；用户手动缩放后不再覆盖。
+  void applyAutoFitForViewport({bool isInitial = true}) {
+    if (!hasDocument || !viewerController.isReady) return;
+    if (!isInitial && zoomIntent == ZoomIntent.manual) return;
+    final viewW = viewerController.viewSize.width;
+    if (viewW <= 0) return;
+    if (isInitial) {
+      if (viewW < 680) {
+        fitPage(userAction: false);
+      } else {
+        fitWidth(maxAutoZoom: 1.4, userAction: false);
+      }
+      return;
+    }
+    if (zoomIntent == ZoomIntent.fitPage) {
+      fitPage(userAction: false);
+    } else if (zoomIntent == ZoomIntent.fitWidth) {
+      fitWidth(maxAutoZoom: 1.4, userAction: false);
+    }
+  }
+
+  void onWorkspaceViewportResized() {
+    if (!hasDocument || !viewerController.isReady) return;
+    if (zoomIntent == ZoomIntent.manual) return;
+    applyAutoFitForViewport(isInitial: false);
+  }
+
+  String get unsavedSummary {
+    final parts = <String>[];
+    final annotOps = _undoStack.whereType<_AnnotUndoEntry>().length;
+    final pageOps = _undoStack.whereType<_PageSnapshot>().length;
+    if (annotOps > 0) {
+      parts.add('$annotOps 次批注修改');
+    }
+    if (pageOps > 0) {
+      parts.add('$pageOps 次页面结构修改');
+    }
+    if (parts.isEmpty && dirty) {
+      parts.add('文档已修改');
+    }
+    return parts.join('、');
   }
 
   void _tryApplyPendingRestore() {
@@ -494,6 +551,13 @@ class EditorController extends ChangeNotifier {
                 ? recent.page
                 : 1;
         currentPage = resumePage;
+        zoomIntent = ZoomIntent.fitWidth;
+        _needsInitialAutoFit = true;
+        if (annotations.isNotEmpty) {
+          rightPanelTab = 1;
+        } else {
+          rightPanelTab = 0;
+        }
 
         viewerRevision++;
         _setDirty(false);
@@ -741,6 +805,7 @@ class EditorController extends ChangeNotifier {
       selectedIds
         ..clear()
         ..add(ann.id);
+      rightPanelTab = 0;
       if (ann.kind == AnnotationKind.text) {
         editingTextId = ann.id;
       }
@@ -786,6 +851,7 @@ class EditorController extends ChangeNotifier {
       selectedIds
         ..clear()
         ..add(id);
+      rightPanelTab = 0;
     }
     notifyListeners();
   }
@@ -1202,7 +1268,7 @@ class EditorController extends ChangeNotifier {
       _setDirty(true);
       _scheduleViewerRestore(page: keepPage, zoom: keepScale);
       notifyListeners();
-      showToast('已旋转 ${activeDeltas.length} 页');
+      showToast('已旋转 ${activeDeltas.length} 页（可按 Ctrl+Z 撤销）');
     });
   }
 
@@ -1247,7 +1313,7 @@ class EditorController extends ChangeNotifier {
       _setDirty(true);
       _scheduleViewerRestore(page: currentPage, zoom: keepScale);
       notifyListeners();
-      showToast('已在第 ${insertAt + 1} 页插入空白页');
+      showToast('已在第 ${insertAt + 1} 页插入空白页（可按 Ctrl+Z 撤销）');
     });
   }
 
@@ -1308,6 +1374,7 @@ class EditorController extends ChangeNotifier {
       _setDirty(true);
       _scheduleViewerRestore(page: currentPage, zoom: keepScale);
       notifyListeners();
+      showToast('已将第 ${fromIndex + 1} 页移至第 ${toIndex + 1} 页（可按 Ctrl+Z 撤销）');
     });
   }
 
@@ -1631,6 +1698,7 @@ class EditorController extends ChangeNotifier {
     required List<String> imagePaths,
     required String targetPath,
     required bool useA4,
+    bool allowReplaceDirty = false,
     void Function(int done, int total, String name)? onProgress,
   }) async {
     final res = await ImageToPdfService.convert(
@@ -1646,7 +1714,7 @@ class EditorController extends ChangeNotifier {
     if (res.failedFiles.isNotEmpty) {
       addProblem('图片转 PDF', '以下图片已跳过：${res.failedFiles.join("、")}');
     }
-    if (!dirty) {
+    if (!dirty || allowReplaceDirty) {
       await openDocument(targetPath);
       showToast('已生成并打开 PDF（${res.pageCount} 页）');
     } else {
@@ -1767,6 +1835,7 @@ class EditorController extends ChangeNotifier {
 
   void setZoomPercent(double percent) {
     final nextZoom = (percent / 100.0).clamp(0.25, 4.0);
+    zoomIntent = ZoomIntent.manual;
     if (viewerController.isReady) {
       viewerController.setZoom(viewerController.centerPosition, nextZoom);
     }
@@ -1774,8 +1843,8 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void fitWidth() {
-    if (!hasDocument || !viewerController.isReady) return;
+  void fitWidth({double? maxAutoZoom, bool userAction = true}) {
+    if (!hasDocument || !viewerController.isReady || pageSizes.isEmpty) return;
     final viewW = viewerController.viewSize.width;
     if (viewW <= 0) return;
     final pi = (currentPage - 1).clamp(0, pageSizes.length - 1);
@@ -1783,14 +1852,17 @@ class EditorController extends ChangeNotifier {
     final rotSteps = ((viewRotationDeg ~/ 90) % 4 + 4) % 4;
     final pageW = rotSteps.isOdd ? sz.h : sz.w;
     final targetW = viewMode == ReadingViewMode.twoPage ? pageW * 2 + 16 : pageW;
-    final nextZoom = ((viewW - 48) / math.max(targetW, 1)).clamp(0.25, 4.0);
+    final maxZoom = maxAutoZoom ?? 4.0;
+    final nextZoom =
+        ((viewW - 48) / math.max(targetW, 1)).clamp(0.25, maxZoom);
+    zoomIntent = ZoomIntent.fitWidth;
     viewerController.setZoom(viewerController.centerPosition, nextZoom);
     scale = nextZoom;
     notifyListeners();
   }
 
-  void fitPage() {
-    if (!hasDocument || !viewerController.isReady) return;
+  void fitPage({bool userAction = true}) {
+    if (!hasDocument || !viewerController.isReady || pageSizes.isEmpty) return;
     final viewW = viewerController.viewSize.width;
     final viewH = viewerController.viewSize.height;
     if (viewW <= 0 || viewH <= 0) return;
@@ -1803,6 +1875,7 @@ class EditorController extends ChangeNotifier {
     final zx = (viewW - 48) / math.max(targetW, 1);
     final zy = (viewH - 48) / math.max(pageH, 1);
     final nextZoom = math.min(zx, zy).clamp(0.25, 4.0);
+    zoomIntent = ZoomIntent.fitPage;
     viewerController.setZoom(viewerController.centerPosition, nextZoom);
     scale = nextZoom;
     notifyListeners();
@@ -1831,14 +1904,72 @@ class EditorController extends ChangeNotifier {
     textSearcher.goToPrevMatch();
   }
 
-  void toggleThumbnails() {
-    showThumbnails = !showThumbnails;
+  bool isThumbnailsOpenFor(WorkspaceLayoutSpec spec) {
+    return spec.leftIsOverlay ? _overlayThumbnailsOpen : _dockedThumbnailsOpen;
+  }
+
+  bool isRightPanelOpenFor(WorkspaceLayoutSpec spec) {
+    return spec.rightIsOverlay ? _overlayRightPanelOpen : _dockedRightPanelOpen;
+  }
+
+  void toggleThumbnails([WorkspaceLayoutSpec? spec]) {
+    if (spec != null && spec.leftIsOverlay) {
+      _overlayThumbnailsOpen = !_overlayThumbnailsOpen;
+      if (_overlayThumbnailsOpen && spec.rightIsOverlay) {
+        _overlayRightPanelOpen = false;
+      }
+      showThumbnails = _overlayThumbnailsOpen;
+      notifyListeners();
+      return;
+    }
+    _dockedThumbnailsOpen = !_dockedThumbnailsOpen;
+    showThumbnails = _dockedThumbnailsOpen;
     notifyListeners();
   }
 
-  void toggleRightPanel() {
-    showRightPanel = !showRightPanel;
+  void toggleRightPanel([WorkspaceLayoutSpec? spec]) {
+    if (spec != null && spec.rightIsOverlay) {
+      _overlayRightPanelOpen = !_overlayRightPanelOpen;
+      if (_overlayRightPanelOpen && spec.leftIsOverlay) {
+        _overlayThumbnailsOpen = false;
+      }
+      showRightPanel = _overlayRightPanelOpen;
+      notifyListeners();
+      return;
+    }
+    _dockedRightPanelOpen = !_dockedRightPanelOpen;
+    showRightPanel = _dockedRightPanelOpen;
     notifyListeners();
+  }
+
+  bool closeOverlayPanels(WorkspaceLayoutSpec spec) {
+    var changed = false;
+    if (spec.leftIsOverlay && _overlayThumbnailsOpen) {
+      _overlayThumbnailsOpen = false;
+      changed = true;
+    }
+    if (spec.rightIsOverlay && _overlayRightPanelOpen) {
+      _overlayRightPanelOpen = false;
+      changed = true;
+    }
+    if (changed) notifyListeners();
+    return changed;
+  }
+
+  void syncPanelOverridesOnBreakpointChange({
+    required bool leftBecameOverlay,
+    required bool rightBecameOverlay,
+  }) {
+    var changed = false;
+    if (leftBecameOverlay && _overlayThumbnailsOpen) {
+      _overlayThumbnailsOpen = false;
+      changed = true;
+    }
+    if (rightBecameOverlay && _overlayRightPanelOpen) {
+      _overlayRightPanelOpen = false;
+      changed = true;
+    }
+    if (changed) notifyListeners();
   }
 
   void toggleSearch() {
@@ -1927,8 +2058,11 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void syncViewerZoom(double zoom) {
+  void syncViewerZoom(double zoom, {bool fromUserGesture = false}) {
     if ((scale - zoom).abs() <= 0.002) return;
+    if (fromUserGesture && (scale - zoom).abs() > 0.015) {
+      zoomIntent = ZoomIntent.manual;
+    }
     scale = zoom;
     notifyListeners();
   }

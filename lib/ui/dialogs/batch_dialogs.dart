@@ -48,9 +48,11 @@ Future<void> showMergeDialog(
         context,
         title: '合并前确认',
         fileName: controller.displayFileName,
+        summary: controller.unsavedSummary,
         message:
             '当前文档有未保存的修改。合并完成后将打开生成的新 PDF，原文档未保存的修改将不会写入原文件。是否先保存当前文档？',
         saveLabel: '保存并继续',
+        barrierDismissible: false,
       );
       if (choice == UnsavedChangesChoice.cancel) return;
       if (choice == UnsavedChangesChoice.save) {
@@ -293,9 +295,17 @@ Future<void> showMergeDialog(
                                     )
                                   : TextField(
                                       controller: e.rangeCtrl,
-                                      decoration: InputDecoration(
-                                        isDense: true,
+                                      decoration:
+                                          AppTheme.compactInputDecoration(
+                                        ctx.appColors,
                                         errorText: valid ? null : '范围无效',
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                      ).copyWith(
+                                        fillColor: ctx.appColors.surfaceBg,
                                       ),
                                       onChanged: (_) => setState(() {}),
                                     ),
@@ -339,7 +349,10 @@ Future<void> showMergeDialog(
                     Expanded(
                       child: TextField(
                         controller: outNameCtrl,
-                        decoration: const InputDecoration(labelText: '输出文件名'),
+                        decoration: const InputDecoration(
+                          labelText: '输出文件名',
+                          floatingLabelBehavior: FloatingLabelBehavior.always,
+                        ),
                         onChanged: (_) => setState(() {
                           userEditedOutName = true;
                         }),
@@ -1050,6 +1063,24 @@ Future<void> showImageToPdfDialog(
   EditorController controller, {
   List<String> initialPaths = const [],
 }) async {
+  if (controller.hasDocument && controller.dirty) {
+    controller.flushPendingInlineEdits();
+    final choice = await showUnsavedChangesDialog(
+      context,
+      title: '图片转 PDF 前确认',
+      fileName: controller.displayFileName,
+      summary: controller.unsavedSummary,
+      message: '当前文档有未保存的修改。图片转 PDF 完成后将打开新生成的 PDF，是否先保存当前文档？',
+      saveLabel: '保存并继续',
+      barrierDismissible: false,
+    );
+    if (choice == UnsavedChangesChoice.cancel) return;
+    if (choice == UnsavedChangesChoice.save) {
+      final saved = await controller.saveDocument();
+      if (!saved) return;
+    }
+    if (!context.mounted) return;
+  }
   var nextImgId = 0;
   final imageItems = [
     for (final path in initialPaths) (id: nextImgId++, path: path),
@@ -1237,6 +1268,7 @@ Future<void> showImageToPdfDialog(
                               ],
                               targetPath: savePath,
                               useA4: useA4,
+                              allowReplaceDirty: true,
                               onProgress: (d, t, name) {
                                 if (ctx.mounted) {
                                   setState(() {

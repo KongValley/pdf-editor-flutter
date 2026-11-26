@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -6,9 +7,14 @@ import '../../state/editor_controller.dart';
 import '../theme/app_theme.dart';
 
 class SearchFloatingBar extends StatefulWidget {
-  const SearchFloatingBar({super.key, required this.controller});
+  const SearchFloatingBar({
+    super.key,
+    required this.controller,
+    this.maxWidth = 340,
+  });
 
   final EditorController controller;
+  final double maxWidth;
 
   @override
   State<SearchFloatingBar> createState() => _SearchFloatingBarState();
@@ -99,84 +105,107 @@ class _SearchFloatingBarState extends State<SearchFloatingBar> {
     final c = context.appColors;
     final count = ctrl.searchMatchesCount;
     final cur = ctrl.searchCurrentIndex;
-    final counter = ctrl.searchQuery.trim().isEmpty
+    final hasQuery = ctrl.searchQuery.trim().isNotEmpty;
+    final noMatch = hasQuery && count == 0;
+    final counter = !hasQuery
         ? ''
-        : count == 0
-            ? '0 / 0'
+        : noMatch
+            ? '无匹配'
             : '${(cur < 0 ? 0 : cur) + 1} / $count';
 
-    return Material(
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.2),
-      color: c.elevatedBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: c.border),
-      ),
-      child: Container(
-        width: 360,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          children: [
-            Icon(Icons.search_rounded, size: 17, color: c.mutedText),
-            const SizedBox(width: 6),
-            Expanded(
-              child: TextField(
-                controller: _textCtrl,
-                focusNode: _focusNode,
-                style: const TextStyle(fontSize: AppTypography.body),
-                decoration: const InputDecoration(
-                  hintText: '搜索文档文本…',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  filled: false,
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 4),
-                ),
-                onChanged: _onChanged,
-                onSubmitted: (_) {
-                  _debounce?.cancel();
-                  if (ctrl.searchQuery != _textCtrl.text) {
-                    ctrl.updateSearchQuery(_textCtrl.text);
-                  } else {
-                    ctrl.nextSearchMatch();
-                  }
-                },
-              ),
-            ),
-            if (counter.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text(
-                  counter,
-                  style: TextStyle(
-                    fontSize: AppTypography.body,
-                    color: c.mutedText,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveMax = constraints.hasBoundedWidth
+            ? math.min(widget.maxWidth, constraints.maxWidth)
+            : widget.maxWidth;
+        final width = effectiveMax.clamp(220.0, widget.maxWidth);
+        return Material(
+          elevation: 6,
+          shadowColor: Colors.black.withValues(alpha: 0.2),
+          color: c.elevatedBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: c.border),
+          ),
+          child: Container(
+            width: width,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, size: 17, color: c.mutedText),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: _textCtrl,
+                    focusNode: _focusNode,
+                    style: const TextStyle(fontSize: AppTypography.body),
+                    decoration: const InputDecoration(
+                      hintText: '搜索文档文本…',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 4),
+                    ),
+                    onChanged: _onChanged,
+                    onSubmitted: (_) {
+                      _debounce?.cancel();
+                      if (ctrl.searchQuery != _textCtrl.text) {
+                        ctrl.updateSearchQuery(_textCtrl.text);
+                      } else {
+                        ctrl.nextSearchMatch();
+                      }
+                    },
                   ),
                 ),
-              ),
-            IconButton(
-              icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 18),
-              tooltip: '上一条 (Shift+F3)',
-              visualDensity: VisualDensity.compact,
-              onPressed: count > 0 ? ctrl.prevSearchMatch : null,
+                if (counter.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Text(
+                      counter,
+                      style: TextStyle(
+                        fontSize: AppTypography.caption,
+                        color: noMatch ? const Color(0xFFD97706) : c.mutedText,
+                        fontWeight: noMatch ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 18),
+                  tooltip: '上一条 (Shift+F3)',
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: count > 0 ? ctrl.prevSearchMatch : null,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                  tooltip: '下一条 (F3)',
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: count > 0 ? ctrl.nextSearchMatch : null,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 17),
+                  tooltip: '关闭 (Esc)',
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: ctrl.toggleSearch,
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
-              tooltip: '下一条 (F3)',
-              visualDensity: VisualDensity.compact,
-              onPressed: count > 0 ? ctrl.nextSearchMatch : null,
-            ),
-            IconButton(
-              icon: const Icon(Icons.close_rounded, size: 17),
-              tooltip: '关闭 (Esc)',
-              visualDensity: VisualDensity.compact,
-              onPressed: ctrl.toggleSearch,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

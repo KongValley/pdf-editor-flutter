@@ -26,11 +26,13 @@ class PdfWorkspaceView extends StatefulWidget {
     super.key,
     required this.controller,
     required this.onContextMenu,
+    this.focusNode,
   });
 
   final EditorController controller;
   final void Function(int pageZeroBased, Offset globalPos, String? annotId)
       onContextMenu;
+  final FocusNode? focusNode;
 
   @override
   State<PdfWorkspaceView> createState() => PdfWorkspaceViewState();
@@ -39,12 +41,18 @@ class PdfWorkspaceView extends StatefulWidget {
 class PdfWorkspaceViewState extends State<PdfWorkspaceView> {
   final GlobalKey _viewerKey = GlobalKey();
   final _PointerLatch _pointerLatch = _PointerLatch();
+  FocusNode? _ownedFocusNode;
+
+  FocusNode get canvasFocusNode =>
+      widget.focusNode ?? (_ownedFocusNode ??= FocusNode(debugLabel: 'pdf_canvas'));
 
   bool _spaceDown = false;
   bool _panning = false;
+  bool _canvasFocused = false;
   Offset? _panLastGlobal;
   Offset? _secondaryDownGlobal;
   double _lastZoom = 1.0;
+  Size? _lastViewportSize;
 
   bool get spaceDown => _spaceDown;
 
@@ -79,6 +87,7 @@ class PdfWorkspaceViewState extends State<PdfWorkspaceView> {
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     widget.controller.viewerController.removeListener(_onViewerMatrixChanged);
+    _ownedFocusNode?.dispose();
     super.dispose();
   }
 
@@ -122,13 +131,13 @@ class PdfWorkspaceViewState extends State<PdfWorkspaceView> {
     return false;
   }
 
-  void _onViewerMatrixChanged() {
+  void _onViewerMatrixChanged({bool fromUserGesture = false}) {
     final vc = widget.controller.viewerController;
     if (!vc.isReady) return;
     final zoom = vc.currentZoom;
     if ((zoom - _lastZoom).abs() > 0.002) {
       _lastZoom = zoom;
-      widget.controller.syncViewerZoom(zoom);
+      widget.controller.syncViewerZoom(zoom, fromUserGesture: fromUserGesture);
     }
   }
 
@@ -172,10 +181,15 @@ class PdfWorkspaceViewState extends State<PdfWorkspaceView> {
       _secondaryDownGlobal = event.position;
     }
 
-    if (isPrimary && !_pointerLatch.consumedByOverlay) {
-      widget.controller.flushPendingInlineEdits();
-      FocusManager.instance.primaryFocus?.unfocus();
-      if (widget.controller.tool == EditorTool.select &&
+    if (isPrimary) {
+      if (!_pointerLatch.consumedByOverlay) {
+        widget.controller.flushPendingInlineEdits();
+      }
+      if (widget.controller.editingTextId == null && !canvasFocusNode.hasFocus) {
+        canvasFocusNode.requestFocus();
+      }
+      if (!_pointerLatch.consumedByOverlay &&
+          widget.controller.tool == EditorTool.select &&
           (widget.controller.selectedIds.isNotEmpty ||
               widget.controller.editingTextId != null)) {
         widget.controller.selectAnnotation(null);
@@ -273,82 +287,128 @@ class PdfWorkspaceViewState extends State<PdfWorkspaceView> {
                 ? SystemMouseCursors.precise
                 : MouseCursor.defer;
 
-    return Container(
-      color: c.canvasBg,
-      child: MouseRegion(
-        cursor: cursor,
-        opaque: false,
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: _handleWorkspacePointerDown,
-          onPointerMove: _handleWorkspacePointerMove,
-          onPointerUp: _handleWorkspacePointerUp,
-          onPointerCancel: (_) {
-            _panning = false;
-            _panLastGlobal = null;
-            _secondaryDownGlobal = null;
-            _pointerLatch.consumedByOverlay = false;
-            _pointerLatch.contextMenuHandled = false;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final nextSize = Size(constraints.maxWidth, constraints.maxHeight);
+        final widthChanged = _lastViewportSize != null &&
+            (_lastViewportSize!.width - nextSize.width).abs() > 4.0;
+        final heightChanged = _lastViewportSize != null &&
+            ctrl.zoomIntent == ZoomIntent.fitPage &&
+            (_lastViewportSize!.height - nextSize.height).abs() > 4.0;
+        if (widthChanged || heightChanged) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) widget.controller.onWorkspaceViewportResized();
+          });
+        }
+        _lastViewportSize = nextSize;
+
+        return Focus(
+          focusNode: canvasFocusNode,
+          canRequestFocus: true,
+          onFocusChange: (focused) {
+            if (_canvasFocused != focused && mounted) {
+              setState(() => _canvasFocused = focused);
+            }
           },
-          child: KeyedSubtree(
-            key: _viewerKey,
-            child: PdfViewer.file(
-              ctrl.activeRenderPath!,
-              key: ValueKey('viewer_${ctrl.activeRenderPath}_${ctrl.viewerRevision}'),
-              controller: ctrl.viewerController,
-              initialPageNumber: ctrl.currentPage,
-              passwordProvider: () => ctrl.password,
-              params: PdfViewerParams(
-                backgroundColor: c.canvasBg,
-                layoutStrategy: layoutStrategy,
-                paging: paging,
-                limitRenderingCache: true,
-                maxImageBytesCachedOnMemory: 120 * 1024 * 1024,
-                enableKeyboardNavigation: false,
-                panEnabled: true,
-                pageDropShadow: BoxShadow(
-                  color: Colors.black
-                      .withValues(alpha: ctrl.isDarkMode ? 0.45 : 0.16),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 3),
-                ),
-                textSelectionParams: PdfTextSelectionParams(
-                  enabled: ctrl.tool == EditorTool.select && !_spaceDown,
-                ),
-                pagePaintCallbacks: [
-                  ctrl.textSearcher.pageTextMatchPaintCallback,
-                ],
-                onDocumentChanged: ctrl.onViewerDocumentChanged,
-                onPageChanged: ctrl.onViewerPageChanged,
-                onInteractionUpdate: (_) => _onViewerMatrixChanged(),
-                onAnimationEnd: _onViewerMatrixChanged,
-                onViewerReady: (_, _) {
-                  ctrl.onViewerReady();
-                  _onViewerMatrixChanged();
-                },
-                pageOverlaysBuilder: (context, pageRect, page) {
-                  return [
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring: _spaceDown,
-                        child: _PageAnnotationOverlay(
-                          controller: ctrl,
-                          page: page,
-                          pageRect: pageRect,
-                          spaceDown: _spaceDown,
-                          pointerLatch: _pointerLatch,
-                          onContextMenu: widget.onContextMenu,
+          child: Semantics(
+            label: 'PDF 文档画布',
+            child: Container(
+              color: c.canvasBg,
+              foregroundDecoration: _canvasFocused
+                  ? BoxDecoration(
+                      border: Border.all(
+                        color: c.accent.withValues(alpha: 0.55),
+                        width: 2,
+                      ),
+                    )
+                  : null,
+              child: MouseRegion(
+                cursor: cursor,
+                opaque: false,
+                child: Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: _handleWorkspacePointerDown,
+                  onPointerMove: _handleWorkspacePointerMove,
+                  onPointerUp: _handleWorkspacePointerUp,
+                  onPointerCancel: (_) {
+                    _panning = false;
+                    _panLastGlobal = null;
+                    _secondaryDownGlobal = null;
+                    _pointerLatch.consumedByOverlay = false;
+                    _pointerLatch.contextMenuHandled = false;
+                  },
+                  child: KeyedSubtree(
+                    key: _viewerKey,
+                    child: PdfViewer.file(
+                      ctrl.activeRenderPath!,
+                      key: ValueKey(
+                        'viewer_${ctrl.activeRenderPath}_${ctrl.viewerRevision}',
+                      ),
+                      controller: ctrl.viewerController,
+                      initialPageNumber: ctrl.currentPage,
+                      passwordProvider: () => ctrl.password,
+                      params: PdfViewerParams(
+                        backgroundColor: c.canvasBg,
+                        layoutStrategy: layoutStrategy,
+                        paging: paging,
+                        limitRenderingCache: true,
+                        maxImageBytesCachedOnMemory: 120 * 1024 * 1024,
+                        enableKeyboardNavigation: false,
+                        keyHandlerParams: const PdfViewerKeyHandlerParams(
+                          enabled: false,
+                          canRequestFocus: false,
                         ),
+                        buildContextMenu: (_, _) => const SizedBox.shrink(),
+                        panEnabled: true,
+                        pageDropShadow: BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: ctrl.isDarkMode ? 0.45 : 0.16,
+                          ),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 3),
+                        ),
+                        textSelectionParams: PdfTextSelectionParams(
+                          enabled: ctrl.tool == EditorTool.select && !_spaceDown,
+                        ),
+                        pagePaintCallbacks: [
+                          ctrl.textSearcher.pageTextMatchPaintCallback,
+                        ],
+                        onDocumentChanged: ctrl.onViewerDocumentChanged,
+                        onPageChanged: ctrl.onViewerPageChanged,
+                        onInteractionUpdate: (_) =>
+                            _onViewerMatrixChanged(fromUserGesture: true),
+                        onAnimationEnd: _onViewerMatrixChanged,
+                        onViewerReady: (_, _) {
+                          ctrl.onViewerReady();
+                          _onViewerMatrixChanged();
+                        },
+                        pageOverlaysBuilder: (context, pageRect, page) {
+                          return [
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                ignoring: _spaceDown,
+                                child: _PageAnnotationOverlay(
+                                  controller: ctrl,
+                                  page: page,
+                                  pageRect: pageRect,
+                                  spaceDown: _spaceDown,
+                                  pointerLatch: _pointerLatch,
+                                  onContextMenu: widget.onContextMenu,
+                                ),
+                              ),
+                            ),
+                          ];
+                        },
                       ),
                     ),
-                  ];
-                },
+                  ),
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1633,8 +1693,10 @@ class _PageAnnotationOverlayState extends State<_PageAnnotationOverlay> {
                 autofocus: true,
                 maxLines: 6,
                 style: const TextStyle(fontSize: AppTypography.body),
-                decoration: InputDecoration(
+                decoration: AppTheme.compactInputDecoration(
+                  c,
                   hintText: '输入便签备注...',
+                ).copyWith(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: c.border),

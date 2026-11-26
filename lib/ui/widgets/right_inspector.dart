@@ -5,72 +5,105 @@ import '../../models/annotation_model.dart';
 import '../../services/system_fonts_service.dart';
 import '../../state/editor_controller.dart';
 import '../../utils/page_range.dart';
+import '../layout/workspace_breakpoints.dart';
 import '../theme/app_theme.dart';
 import 'hover_feedback.dart';
 
 class RightInspector extends StatelessWidget {
-  const RightInspector({super.key, required this.controller});
+  const RightInspector({
+    super.key,
+    required this.controller,
+    this.width = WorkspaceLayoutSpec.dockedRightWidth,
+    this.isOverlay = false,
+    this.onClose,
+  });
 
   final EditorController controller;
+  final double width;
+  final bool isOverlay;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
     final c = context.appColors;
+    final annotCount = controller.annotations.length;
     return Material(
       color: c.surfaceBg,
+      elevation: isOverlay ? 14 : 0,
+      shadowColor: Colors.black.withValues(alpha: 0.24),
       child: Container(
-        width: 292,
+        width: width,
         decoration: BoxDecoration(
           border: Border(left: BorderSide(color: c.border)),
         ),
         child: Column(
-        children: [
-          // 顶部 Segmented Tab
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: c.border)),
+          children: [
+            // 顶部 Segmented Tab
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: c.border)),
+              ),
+              child: Row(
+                children: [
+                  _TabButton(
+                    label: '属性',
+                    selected: controller.rightPanelTab == 0,
+                    onTap: () {
+                      controller.rightPanelTab = 0;
+                      controller.refresh();
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  _TabButton(
+                    label: annotCount > 0 ? '注释 ($annotCount)' : '注释',
+                    selected: controller.rightPanelTab == 1,
+                    onTap: () {
+                      controller.rightPanelTab = 1;
+                      controller.refresh();
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  _TabButton(
+                    label: '大纲',
+                    selected: controller.rightPanelTab == 2,
+                    onTap: () {
+                      controller.rightPanelTab = 2;
+                      controller.refresh();
+                    },
+                  ),
+                  if (isOverlay && onClose != null) ...[
+                    const SizedBox(width: 4),
+                    DesktopHoverContainer(
+                      tooltip: '关闭右侧面板 (Esc)',
+                      onTap: onClose,
+                      width: 32,
+                      height: 32,
+                      borderRadius: 7,
+                      hoverColor: c.hoverFill,
+                      hoverBorderColor: c.hoverBorder,
+                      pressedColor: c.accentSoft,
+                      builder: (context, hovered, _) => Center(
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: hovered ? c.accent : c.mutedText,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                _TabButton(
-                  label: '属性',
-                  selected: controller.rightPanelTab == 0,
-                  onTap: () {
-                    controller.rightPanelTab = 0;
-                    controller.refresh();
-                  },
-                ),
-                const SizedBox(width: 6),
-                _TabButton(
-                  label: '注释 (${controller.annotations.length})',
-                  selected: controller.rightPanelTab == 1,
-                  onTap: () {
-                    controller.rightPanelTab = 1;
-                    controller.refresh();
-                  },
-                ),
-                const SizedBox(width: 6),
-                _TabButton(
-                  label: '大纲',
-                  selected: controller.rightPanelTab == 2,
-                  onTap: () {
-                    controller.rightPanelTab = 2;
-                    controller.refresh();
-                  },
-                ),
-              ],
+            Expanded(
+              child: switch (controller.rightPanelTab) {
+                0 => _PropertiesTab(controller: controller),
+                1 => _AnnotationsListTab(controller: controller),
+                _ => _OutlineTab(controller: controller),
+              },
             ),
-          ),
-          Expanded(
-            child: switch (controller.rightPanelTab) {
-              0 => _PropertiesTab(controller: controller),
-              1 => _AnnotationsListTab(controller: controller),
-              _ => _OutlineTab(controller: controller),
-            },
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -94,8 +127,9 @@ class _TabButton extends StatelessWidget {
       child: DesktopHoverContainer(
         active: selected,
         onTap: onTap,
+        minHeight: 34,
         borderRadius: 7,
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         activeColor: c.accentSoft,
         activeBorderColor: c.accent.withValues(alpha: 0.42),
         hoverColor: c.hoverFill,
@@ -108,7 +142,8 @@ class _TabButton extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: AppTypography.body,
-              fontWeight: (selected || hovered) ? FontWeight.w600 : FontWeight.w400,
+              fontWeight:
+                  (selected || hovered) ? FontWeight.w600 : FontWeight.w400,
               color: (selected || hovered) ? c.accent : c.mutedText,
             ),
           ),
@@ -187,6 +222,204 @@ class _PropertiesTabState extends State<_PropertiesTab> {
     }
   }
 
+  Widget _buildDocumentOverview(BuildContext context, EditorController ctrl) {
+    final c = context.appColors;
+    final pageIdx =
+        (ctrl.currentPage - 1).clamp(0, ctrl.pageSizes.isEmpty ? 0 : ctrl.pageSizes.length - 1);
+    final sizeText = ctrl.pageSizes.isNotEmpty
+        ? () {
+            final sz = ctrl.pageSizes[pageIdx];
+            final wMm = pointsToMm(sz.w).round();
+            final hMm = pointsToMm(sz.h).round();
+            return '$wMm × $hMm mm';
+          }()
+        : '—';
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        if (ctrl.selectedIds.length > 1) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: c.accentSoft.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: c.accent.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '已多选 ${ctrl.selectedIds.length} 条批注',
+                  style: TextStyle(
+                    fontSize: AppTypography.title,
+                    fontWeight: FontWeight.w600,
+                    color: c.accent,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '可在画布拖动批量移动，或使用下方快捷动作。',
+                  style: TextStyle(
+                    fontSize: AppTypography.caption,
+                    color: c.mutedText,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: ctrl.duplicateSelectedAnnotations,
+                        icon: const Icon(
+                          Icons.control_point_duplicate_rounded,
+                          size: 16,
+                        ),
+                        label: const Text('再制'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: ctrl.deleteSelectedAnnotations,
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 16,
+                          color: Color(0xFFDC2626),
+                        ),
+                        label: const Text(
+                          '删除',
+                          style: TextStyle(color: Color(0xFFDC2626)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        Text(
+          '文档信息',
+          style: TextStyle(
+            fontSize: AppTypography.caption,
+            fontWeight: FontWeight.w600,
+            color: c.mutedText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: c.subtleFill,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ctrl.displayFileName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: AppTypography.body,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (ctrl.filePath != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  ctrl.filePath!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: AppTypography.caption,
+                    color: c.mutedText,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Divider(height: 1, color: c.border),
+              const SizedBox(height: 10),
+              _InfoRow(label: '当前页 / 总页数', value: '${ctrl.currentPage} / ${ctrl.pageCount}'),
+              const SizedBox(height: 6),
+              _InfoRow(label: '当前页尺寸', value: sizeText),
+              const SizedBox(height: 6),
+              _InfoRow(label: '批注数量', value: '${ctrl.annotations.length} 条'),
+              const SizedBox(height: 6),
+              _InfoRow(
+                label: '文档状态',
+                value: ctrl.encrypted
+                    ? '加密只读'
+                    : (ctrl.dirty ? '有未保存更改' : '已保存'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (ctrl.annotations.isNotEmpty || ctrl.outlineNodes.isNotEmpty) ...[
+          Row(
+            children: [
+              if (ctrl.annotations.isNotEmpty)
+                Expanded(
+                  child: _QuickSwitchCard(
+                    icon: Icons.comment_outlined,
+                    label: '查看批注 (${ctrl.annotations.length})',
+                    onTap: () {
+                      ctrl.rightPanelTab = 1;
+                      ctrl.refresh();
+                    },
+                  ),
+                ),
+              if (ctrl.annotations.isNotEmpty && ctrl.outlineNodes.isNotEmpty)
+                const SizedBox(width: 8),
+              if (ctrl.outlineNodes.isNotEmpty)
+                Expanded(
+                  child: _QuickSwitchCard(
+                    icon: Icons.toc_rounded,
+                    label: '查看大纲',
+                    onTap: () {
+                      ctrl.rightPanelTab = 2;
+                      ctrl.refresh();
+                    },
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: c.subtleFill.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: c.border.withValues(alpha: 0.7)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.touch_app_outlined, size: 16, color: c.mutedText),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '在画布上选中任意批注，即可在此调整颜色、透明度、字体、层级或锁定状态。',
+                  style: TextStyle(
+                    fontSize: AppTypography.caption,
+                    color: c.mutedText,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctrl = widget.controller;
@@ -194,22 +427,7 @@ class _PropertiesTabState extends State<_PropertiesTab> {
     final ann = ctrl.singleSelectedAnnotation;
 
     if (ann == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text(
-            ctrl.selectedIds.length > 1
-                ? '已多选 ${ctrl.selectedIds.length} 条批注\n可拖动批量移动或按 Delete 删除'
-                : '在画布上点击选中一条批注\n即可在此调整颜色、透明度、字体、层级或锁定状态',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: AppTypography.body,
-              color: c.mutedText,
-              height: 1.5,
-            ),
-          ),
-        ),
-      );
+      return _buildDocumentOverview(context, ctrl);
     }
 
     final showThickness = ann.kind == AnnotationKind.rect ||
@@ -238,35 +456,71 @@ class _PropertiesTabState extends State<_PropertiesTab> {
                 ),
               ),
             ),
-            IconButton(
-              icon: Icon(
-                ann.locked ? Icons.lock_rounded : Icons.lock_open_rounded,
-                size: 17,
-                color: ann.locked ? const Color(0xFFD97706) : c.mutedText,
-              ),
+            DesktopHoverContainer(
               tooltip: ann.locked ? '解锁注释' : '锁定注释（禁止拖动/缩放）',
-              onPressed: () => ctrl.patchAnnotation(
+              onTap: () => ctrl.patchAnnotation(
                 ann.id,
                 (cur) => cur.copyWith(locked: !cur.locked),
+              ),
+              width: 32,
+              height: 32,
+              borderRadius: 7,
+              active: ann.locked,
+              activeColor: const Color(0x22F59E0B),
+              activeBorderColor: const Color(0x66D97706),
+              hoverColor: c.hoverFill,
+              hoverBorderColor: c.hoverBorder,
+              builder: (context, hovered, _) => Center(
+                child: Icon(
+                  ann.locked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                  size: 16,
+                  color: ann.locked
+                      ? const Color(0xFFD97706)
+                      : (hovered ? c.accent : c.mutedText),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            DesktopHoverContainer(
+              tooltip: '删除此批注 (Delete)',
+              onTap: ctrl.deleteSelectedAnnotations,
+              width: 32,
+              height: 32,
+              borderRadius: 7,
+              hoverColor: const Color(0x18DC2626),
+              hoverBorderColor: const Color(0x66DC2626),
+              pressedColor: const Color(0x2ADC2626),
+              builder: (context, hovered, _) => const Center(
+                child: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 17,
+                  color: Color(0xFFDC2626),
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 10),
 
-        // 8 色调色板
+        // 8 色调色板（32x32 命中区 + 26x26 视觉色点，支持键盘聚焦）
         Text(
           '颜色',
-          style: TextStyle(fontSize: AppTypography.body, color: c.mutedText),
+          style: TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
         ),
         const SizedBox(height: 6),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 2,
+          runSpacing: 4,
           children: [
             for (final hex in kAnnotationPalette)
-              HoverStateBuilder(
-                enabled: true,
+              DesktopHoverContainer(
+                tooltip: hex.toUpperCase(),
+                semanticLabel: '颜色 $hex',
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                hoverColor: c.hoverFill,
+                hoverBorderColor: c.hoverBorder,
                 onTap: () => ctrl.patchAnnotation(
                   ann.id,
                   (cur) => cur.copyWith(color: hex),
@@ -274,26 +528,28 @@ class _PropertiesTabState extends State<_PropertiesTab> {
                 builder: (context, hovered, pressed) {
                   final selected =
                       ann.color.toLowerCase() == hex.toLowerCase();
-                  return AnimatedScale(
-                    scale: pressed
-                        ? 0.92
-                        : hovered
-                            ? 1.15
-                            : 1.0,
-                    duration: const Duration(milliseconds: 100),
-                    child: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: hexToColor(hex),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selected
-                              ? c.accent
-                              : hovered
-                                  ? c.accent.withValues(alpha: 0.75)
-                                  : Colors.black26,
-                          width: selected || hovered ? 2.5 : 1,
+                  return Center(
+                    child: AnimatedScale(
+                      scale: pressed
+                          ? 0.92
+                          : hovered
+                              ? 1.12
+                              : 1.0,
+                      duration: const Duration(milliseconds: 100),
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: hexToColor(hex),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: selected
+                                ? c.accent
+                                : hovered
+                                    ? c.accent.withValues(alpha: 0.75)
+                                    : Colors.black26,
+                            width: selected || hovered ? 2.5 : 1,
+                          ),
                         ),
                       ),
                     ),
@@ -302,14 +558,15 @@ class _PropertiesTabState extends State<_PropertiesTab> {
               ),
           ],
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
 
         // 透明度
         Row(
           children: [
             Text(
               '透明度',
-              style: TextStyle(fontSize: AppTypography.body, color: c.mutedText),
+              style:
+                  TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
             ),
             const Spacer(),
             Text(
@@ -337,7 +594,7 @@ class _PropertiesTabState extends State<_PropertiesTab> {
               Text(
                 '线宽',
                 style: TextStyle(
-                  fontSize: AppTypography.body,
+                  fontSize: AppTypography.caption,
                   color: c.mutedText,
                 ),
               ),
@@ -368,7 +625,7 @@ class _PropertiesTabState extends State<_PropertiesTab> {
               Text(
                 '字号',
                 style: TextStyle(
-                  fontSize: AppTypography.body,
+                  fontSize: AppTypography.caption,
                   color: c.mutedText,
                 ),
               ),
@@ -394,19 +651,23 @@ class _PropertiesTabState extends State<_PropertiesTab> {
           const SizedBox(height: 6),
           Text(
             '字体',
-            style: TextStyle(fontSize: AppTypography.body, color: c.mutedText),
+            style:
+                TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
           ),
           const SizedBox(height: 6),
           DropdownButtonFormField<String?>(
             isExpanded: true,
+            decoration: AppTheme.compactInputDecoration(c),
             initialValue: ctrl.systemFonts.any((f) => f.family == ann.fontFamily)
                 ? ann.fontFamily
                 : null,
             items: [
               const DropdownMenuItem<String?>(
                 value: null,
-                child: Text('默认中文字体',
-                    style: TextStyle(fontSize: AppTypography.body)),
+                child: Text(
+                  '默认中文字体',
+                  style: TextStyle(fontSize: AppTypography.body),
+                ),
               ),
               for (final f in ctrl.systemFonts)
                 DropdownMenuItem<String?>(
@@ -439,7 +700,8 @@ class _PropertiesTabState extends State<_PropertiesTab> {
         if (showTextContent) ...[
           Text(
             '内容',
-            style: TextStyle(fontSize: AppTypography.body, color: c.mutedText),
+            style:
+                TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
           ),
           const SizedBox(height: 6),
           TextField(
@@ -448,6 +710,7 @@ class _PropertiesTabState extends State<_PropertiesTab> {
             minLines: 2,
             maxLines: 5,
             style: const TextStyle(fontSize: AppTypography.body),
+            decoration: AppTheme.compactInputDecoration(c),
             onChanged: (v) {
               ctrl.beginAnnotBatch();
               ctrl.patchAnnotation(
@@ -472,7 +735,7 @@ class _PropertiesTabState extends State<_PropertiesTab> {
         // 层级控制
         Text(
           '层级（同页内）',
-          style: TextStyle(fontSize: AppTypography.body, color: c.mutedText),
+          style: TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
         ),
         const SizedBox(height: 6),
         Row(
@@ -502,21 +765,103 @@ class _PropertiesTabState extends State<_PropertiesTab> {
             ),
           ],
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
 
         OutlinedButton.icon(
           onPressed: ctrl.deleteSelectedAnnotations,
-          icon: const Icon(Icons.delete_outline_rounded,
-              size: 16, color: Color(0xFFE03131)),
+          icon: const Icon(
+            Icons.delete_outline_rounded,
+            size: 16,
+            color: Color(0xFFDC2626),
+          ),
           label: const Text(
             '删除此批注',
             style: TextStyle(
-              color: Color(0xFFE03131),
+              color: Color(0xFFDC2626),
               fontSize: AppTypography.body,
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: AppTypography.caption, color: c.mutedText),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: AppTypography.caption,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickSwitchCard extends StatelessWidget {
+  const _QuickSwitchCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    return DesktopHoverContainer(
+      onTap: onTap,
+      minHeight: 36,
+      borderRadius: 8,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      baseColor: c.subtleFill,
+      borderColor: c.border,
+      hoverColor: c.hoverFill,
+      hoverBorderColor: c.hoverBorder,
+      pressedColor: c.accentSoft,
+      builder: (context, hovered, _) => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 15,
+            color: hovered ? c.accent : c.mutedText,
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: AppTypography.caption,
+                fontWeight: FontWeight.w500,
+                color: hovered
+                    ? c.accent
+                    : Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -539,6 +884,7 @@ class _ZBtn extends StatelessWidget {
       child: DesktopHoverContainer(
         enabled: enabled,
         onTap: enabled ? onTap : null,
+        minHeight: 32,
         borderRadius: 6,
         padding: const EdgeInsets.symmetric(vertical: 6),
         baseColor: c.subtleFill,
@@ -673,12 +1019,16 @@ class _AnnotationsListTab extends StatelessWidget {
                       subtitle: Text(
                         '${ann.kind.label} · 第 ${ann.page + 1} 页',
                         style: TextStyle(
-                          fontSize: AppTypography.body,
+                          fontSize: AppTypography.caption,
                           color: c.mutedText,
                         ),
                       ),
                       trailing: IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 15),
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         tooltip: '删除',
                         onPressed: () =>
                             controller.deleteAnnotationById(ann.id),
@@ -772,8 +1122,9 @@ class _OutlineNodeTileState extends State<_OutlineNodeTile> {
                 : hasChildren
                     ? () => setState(() => _expanded = !_expanded)
                     : null,
+            minHeight: 32,
             borderRadius: 6,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
             hoverColor: c.hoverFill,
             hoverBorderColor: c.hoverBorder,
             pressedColor: c.accentSoft,
@@ -782,9 +1133,10 @@ class _OutlineNodeTileState extends State<_OutlineNodeTile> {
               children: [
                 if (hasChildren)
                   DesktopHoverContainer(
-                    width: 20,
-                    height: 20,
-                    borderRadius: 4,
+                    tooltip: _expanded ? '折叠子书签' : '展开子书签',
+                    width: 28,
+                    height: 28,
+                    borderRadius: 5,
                     hoverColor: c.accentSoft,
                     hoverBorderColor: c.hoverBorder,
                     onTap: () => setState(() => _expanded = !_expanded),
@@ -793,36 +1145,38 @@ class _OutlineNodeTileState extends State<_OutlineNodeTile> {
                         _expanded
                             ? Icons.keyboard_arrow_down_rounded
                             : Icons.keyboard_arrow_right_rounded,
-                        size: 16,
+                        size: 18,
                         color: chevronHover ? c.accent : c.mutedText,
                       ),
                     ),
                   )
                 else
-                  const SizedBox(width: 20),
-                const SizedBox(width: 4),
+                  const SizedBox(width: 28),
+                const SizedBox(width: 2),
                 Expanded(
                   child: Text(
                     widget.node.title,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: AppTypography.body,
-                      color: (dest != null || hasChildren) && hovered
+                      fontWeight: hovered ? FontWeight.w500 : FontWeight.w400,
+                      color: hovered
                           ? c.accent
-                          : dest == null
-                              ? c.mutedText
-                              : null,
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
-                if (dest != null)
+                if (dest != null) ...[
+                  const SizedBox(width: 6),
                   Text(
                     '${dest.pageNumber}',
                     style: TextStyle(
-                      fontSize: AppTypography.body,
+                      fontSize: AppTypography.caption,
                       color: hovered ? c.accent : c.mutedText,
                     ),
                   ),
+                ],
               ],
             ),
           ),

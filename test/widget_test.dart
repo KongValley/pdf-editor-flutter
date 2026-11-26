@@ -101,8 +101,10 @@ void main() {
     expect(find.text('100%'), findsOneWidget);
     expect(find.text('连续'), findsOneWidget);
 
-    expect(tester.widget<Text>(find.text('共 5 页')).style?.fontSize, 14);
-    expect(tester.widget<Text>(find.text('连续')).style?.fontSize, 14);
+    expect(tester.widget<Text>(find.text('共 5 页')).style?.fontSize,
+        AppTypography.caption);
+    expect(tester.widget<Text>(find.text('连续')).style?.fontSize,
+        AppTypography.body);
 
     // 验证最小窗口宽度 1024px 下底部状态栏仍不溢出
     tester.view.physicalSize = const Size(1024, 640);
@@ -114,7 +116,8 @@ void main() {
     expect(find.text('未保存'), findsOneWidget);
     expect(find.text('加密文档'), findsOneWidget);
     expect(find.text('问题 (1)'), findsOneWidget);
-    expect(tester.widget<Text>(find.text('未保存')).style?.fontSize, 14);
+    expect(tester.widget<Text>(find.text('未保存')).style?.fontSize,
+        AppTypography.caption);
   });
 
   testWidgets('TopBar and ThumbnailsSidebar buttons highlight visibly on mouse hover',
@@ -187,14 +190,48 @@ void main() {
       matching: find.text('导出'),
     );
     final selectAllFinder = find.text('全选');
-    final wmFinder = find.text('水印');
+    final rotateLeftFinder = find.descendant(
+      of: find.byType(ThumbnailsSidebar),
+      matching: find.byIcon(Icons.rotate_left_rounded),
+    );
 
-    expect(_fillColorOf(tester, openFinder), equals(Colors.transparent));
-    expect(_fillColorOf(tester, topExportFinder), equals(Colors.transparent));
-    expect(_fillColorOf(tester, selectAllFinder), equals(Colors.transparent));
-    expect(_fillColorOf(tester, wmFinder), equals(AppColors.light.subtleFill));
+    expect(
+      _fillColorOf(tester, openFinder),
+      equals(AppColors.light.hoverFill.withValues(alpha: 0)),
+    );
+    expect(
+      _fillColorOf(tester, topExportFinder),
+      equals(AppColors.light.hoverFill.withValues(alpha: 0)),
+    );
+    expect(
+      _fillColorOf(tester, selectAllFinder),
+      equals(AppColors.light.hoverFill.withValues(alpha: 0)),
+    );
+    expect(
+      _fillColorOf(tester, rotateLeftFinder),
+      equals(AppColors.light.subtleFill),
+    );
 
-    await _hoverOver(tester, gesture, openFinder);
+    // Verify mid-hover interpolation keeps hoverFill RGB (no dark-gray flash)
+    await gesture.moveTo(tester.getCenter(openFinder));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 25));
+    final openContainer = find.ancestor(
+      of: openFinder,
+      matching: find.byType(AnimatedContainer),
+    );
+    final midDecorated = tester.widget<DecoratedBox>(
+      find.descendant(
+        of: openContainer.first,
+        matching: find.byType(DecoratedBox),
+      ).first,
+    );
+    final midColor = (midDecorated.decoration as BoxDecoration).color!;
+    expect(midColor.r, closeTo(AppColors.light.hoverFill.r, 0.02));
+    expect(midColor.g, closeTo(AppColors.light.hoverFill.g, 0.02));
+    expect(midColor.b, closeTo(AppColors.light.hoverFill.b, 0.02));
+
+    await tester.pump(const Duration(milliseconds: 120));
     expect(_fillColorOf(tester, openFinder), equals(AppColors.light.hoverFill));
 
     await _hoverOver(tester, gesture, topExportFinder);
@@ -203,13 +240,13 @@ void main() {
     await _hoverOver(tester, gesture, selectAllFinder);
     expect(_fillColorOf(tester, selectAllFinder), equals(AppColors.light.hoverFill));
 
-    await _hoverOver(tester, gesture, wmFinder);
-    expect(_fillColorOf(tester, wmFinder), equals(AppColors.light.hoverFill));
+    await _hoverOver(tester, gesture, rotateLeftFinder);
+    expect(_fillColorOf(tester, rotateLeftFinder), equals(AppColors.light.hoverFill));
 
     await gesture.moveTo(Offset.zero);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
-    expect(_fillColorOf(tester, wmFinder), equals(AppColors.light.subtleFill));
+    expect(_fillColorOf(tester, rotateLeftFinder), equals(AppColors.light.subtleFill));
   });
 
   testWidgets(
@@ -392,10 +429,12 @@ void main() {
     expect(await pendingPw, equals('secret123'));
   });
 
-  testWidgets('Theme and all UI panels & dialogs enforce 16px/14px typography without overflow',
+  testWidgets('Theme and all UI panels & dialogs enforce 12/14/16/20px typography without overflow',
       (WidgetTester tester) async {
+    expect(AppTypography.display, 20);
     expect(AppTypography.title, 16);
     expect(AppTypography.body, 14);
+    expect(AppTypography.caption, 12);
 
     for (final dark in [false, true]) {
       final theme = AppTheme.build(dark);
@@ -429,8 +468,9 @@ void main() {
       ]) {
         expect(
           style?.fontSize,
-          anyOf(equals(14.0), equals(16.0)),
-          reason: 'Theme(dark=$dark) style $style must be 14 or 16',
+          isIn(AppTypography.allowedSizes),
+          reason:
+              'Theme(dark=$dark) style $style must be in ${AppTypography.allowedSizes}',
         );
       }
     }
@@ -471,7 +511,10 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 50));
     _expectUnifiedTypography(tester);
-    expect(tester.widget<Text>(find.text('PDF 编辑器')).style?.fontSize, 16);
+    expect(
+      tester.widget<Text>(find.text('PDF 编辑器')).style?.fontSize,
+      AppTypography.display,
+    );
 
     // 2. 完整工作台外框（顶栏 + 左侧缩略图栏 + 悬浮工具坞 + 搜索条 + 右侧属性栏 + 底栏）
     final editCtrl = EditorController();
@@ -826,6 +869,34 @@ void main() {
       of: find.byType(ModernStatusBar),
       matching: find.byType(TextField),
     );
+    final statusEditables = find.descendant(
+      of: find.byType(ModernStatusBar),
+      matching: find.byType(EditableText),
+    );
+    final prevIconCenterY = tester
+        .getCenter(find.descendant(
+          of: find.byType(ModernStatusBar),
+          matching: find.byIcon(Icons.chevron_left_rounded),
+        ))
+        .dy;
+    final slashTextCenterY = tester
+        .getCenter(find.descendant(
+          of: find.byType(ModernStatusBar),
+          matching: find.text('/ 5'),
+        ))
+        .dy;
+    final minusIconCenterY = tester
+        .getCenter(find.descendant(
+          of: find.byType(ModernStatusBar),
+          matching: find.byIcon(Icons.remove_rounded),
+        ))
+        .dy;
+    final pageEditableCenterY = tester.getCenter(statusEditables.first).dy;
+    final zoomEditableCenterY = tester.getCenter(statusEditables.last).dy;
+    expect((pageEditableCenterY - prevIconCenterY).abs(), lessThanOrEqualTo(1.5));
+    expect((pageEditableCenterY - slashTextCenterY).abs(), lessThanOrEqualTo(1.5));
+    expect((zoomEditableCenterY - minusIconCenterY).abs(), lessThanOrEqualTo(1.5));
+
     await tester.tap(statusFields.first);
     await tester.enterText(statusFields.first, '4');
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -1092,13 +1163,34 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
     expect(find.text('高亮'), findsOneWidget);
 
-    // 重新开启自动收纳并手动点击收起按钮
+    // 重新开启自动收纳并手动点击收起按钮，校验平滑形变收缩动效
     await tester.tap(find.byTooltip('已固定展开（点击开启自动收纳）'));
     await tester.pump();
     expect(ctrl.autoCollapseDock, isTrue);
+
+    final dockMaterialFinder = find
+        .descendant(
+          of: find.byType(FloatingToolDock),
+          matching: find.byType(Material),
+        )
+        .first;
+    final expandedWidth = tester.getSize(dockMaterialFinder).width;
     await tester.tap(find.byTooltip('收起工具栏'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump(const Duration(milliseconds: 90));
+    final midCollapseWidth = tester.getSize(dockMaterialFinder).width;
+    await tester.pump(const Duration(milliseconds: 200));
+    final collapsedWidth = tester.getSize(dockMaterialFinder).width;
+    expect(
+      midCollapseWidth,
+      lessThan(expandedWidth),
+      reason: 'expanded=$expandedWidth mid=$midCollapseWidth collapsed=$collapsedWidth',
+    );
+    expect(
+      midCollapseWidth,
+      greaterThan(collapsedWidth),
+      reason: 'expanded=$expandedWidth mid=$midCollapseWidth collapsed=$collapsedWidth',
+    );
     expect(find.text('工具栏'), findsOneWidget);
   });
 
@@ -1191,6 +1283,17 @@ void main() {
       find.widgetWithText(FilledButton, '开始合并'),
     );
     expect(startBtn.onPressed, isNull);
+    final outNameLabelRect = tester.getRect(find.text('输出文件名'));
+    final outNameEditableRect = tester.getRect(
+      find.descendant(
+        of: find.widgetWithText(TextField, '输出文件名'),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(
+      outNameEditableRect.top - outNameLabelRect.bottom,
+      greaterThanOrEqualTo(6.0),
+    );
     _expectUnifiedTypography(tester);
 
     tester.view.physicalSize = const Size(1024, 640);
@@ -1202,6 +1305,91 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('合并 PDF'), findsNothing);
   });
+
+  testWidgets(
+      'Responsive shell breakpoints, overlay drawers, top bar visibility and canvas-scoped shortcuts',
+      (WidgetTester tester) async {
+    final ctrl = EditorController();
+    addTearDown(ctrl.dispose);
+    ctrl.filePath = r'C:\demo\responsive.pdf';
+    ctrl.activeRenderPath = r'C:\demo\responsive.pdf';
+    ctrl.suspendViewer = true;
+    ctrl.pageCount = 5;
+    ctrl.pageSizes = List.generate(5, (_) => (w: 595.0, h: 842.0));
+    ctrl.pageRotations = List.filled(5, 0);
+
+    // 1. 1024x640: 双侧栏默认收起，画布占满全宽，顶栏右侧面板开关完整可见
+    tester.view.physicalSize = const Size(1024, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.build(false),
+        home: ListenableBuilder(
+          listenable: ctrl,
+          builder: (_, _) => PdfEditorShell(controller: ctrl),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 60));
+
+    expect(find.byType(ThumbnailsSidebar), findsNothing);
+    expect(find.byType(RightInspector), findsNothing);
+
+    final rightToggleFinder = find.byTooltip('显示/隐藏右侧面板 (Ctrl+Shift+B)');
+    final leftToggleFinder = find.byTooltip('显示/隐藏缩略图栏 (Ctrl+B)');
+    expect(rightToggleFinder, findsOneWidget);
+    expect(leftToggleFinder, findsOneWidget);
+    expect(tester.getRect(rightToggleFinder).right, lessThanOrEqualTo(1024.0));
+    expect(tester.getRect(leftToggleFinder).right, lessThanOrEqualTo(1024.0));
+    expect(tester.getRect(rightToggleFinder).height, closeTo(32.0, 2.0));
+
+    // 点击打开右侧抽屉 -> 覆盖显示；再点左侧抽屉时互斥关闭右侧抽屉；按 Esc 关闭
+    await tester.tap(rightToggleFinder);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(RightInspector), findsOneWidget);
+    expect(find.text('文档信息'), findsOneWidget);
+
+    await tester.tap(leftToggleFinder);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(ThumbnailsSidebar), findsOneWidget);
+    expect(find.byType(RightInspector), findsNothing);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(ThumbnailsSidebar), findsNothing);
+    expect(find.byType(RightInspector), findsNothing);
+
+    // 关闭过窄屏抽屉后放大回宽屏 (>=1440)，停靠双栏仍正常恢复
+    tester.view.physicalSize = const Size(1480, 920);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byType(ThumbnailsSidebar), findsOneWidget);
+    expect(find.byType(RightInspector), findsOneWidget);
+    tester.view.physicalSize = const Size(1024, 640);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 单字母工具快捷键在画布未获焦时不误切工具
+    expect(ctrl.tool, EditorTool.select);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyH);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyH);
+    await tester.pump();
+    expect(ctrl.tool, EditorTool.select);
+
+    // 搜索条空匹配文案清晰
+    ctrl.openOrFocusSearch();
+    ctrl.searchQuery = '不存在的关键字';
+    ctrl.searchMatchesCount = 0;
+    ctrl.refresh();
+    await tester.pump();
+    expect(find.text('无匹配'), findsOneWidget);
+
+    // 默认高亮透明度与快捷键提示
+    expect(kToolDefaults[AnnotationKind.highlight]!.opacity, closeTo(0.26, 0.001));
+    expect(EditorTool.highlight.tooltip, contains('(H)'));
+  });
 }
 
 void _expectUnifiedTypography(WidgetTester tester) {
@@ -1210,7 +1398,7 @@ void _expectUnifiedTypography(WidgetTester tester) {
     final resolved = DefaultTextStyle.of(element).style.merge(textWidget.style);
     expect(
       resolved.fontSize,
-      anyOf(equals(14.0), equals(16.0)),
+      isIn(AppTypography.allowedSizes),
       reason: 'Text "${textWidget.data ?? textWidget.textSpan?.toPlainText()}" '
           'had unexpected fontSize ${resolved.fontSize}',
     );
@@ -1219,7 +1407,7 @@ void _expectUnifiedTypography(WidgetTester tester) {
     final editable = element.widget as EditableText;
     expect(
       editable.style.fontSize,
-      anyOf(equals(14.0), equals(16.0)),
+      isIn(AppTypography.allowedSizes),
       reason: 'EditableText "${editable.controller.text}" '
           'had unexpected fontSize ${editable.style.fontSize}',
     );
@@ -1240,7 +1428,7 @@ void _expectUnifiedTypography(WidgetTester tester) {
         if (size != null) {
           expect(
             size,
-            anyOf(equals(14.0), equals(16.0)),
+            isIn(AppTypography.allowedSizes),
             reason: 'RichText span "${span.text}" had unexpected fontSize $size',
           );
         }
