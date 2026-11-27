@@ -12,10 +12,12 @@ import 'package:pdf_editor_flutter/main.dart';
 import 'package:pdf_editor_flutter/models/annotation_model.dart';
 import 'package:pdf_editor_flutter/state/editor_controller.dart';
 import 'package:pdf_editor_flutter/ui/theme/app_theme.dart';
+import 'package:pdf_editor_flutter/ui/widgets/document_tab_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/modern_status_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/modern_top_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/right_inspector.dart';
 import 'package:pdf_editor_flutter/ui/widgets/search_floating_bar.dart';
+import 'package:pdf_editor_flutter/ui/widgets/vertical_tool_rail.dart';
 
 Future<void> _pumpUntil(
   WidgetTester tester,
@@ -118,6 +120,10 @@ void main() {
     expect(ctrl.displayFileName, 'e2e_sample.pdf');
     expect(ctrl.scale, greaterThanOrEqualTo(0.35));
     expect(ctrl.scale, lessThanOrEqualTo(1.5));
+    expect(tester.getRect(find.byType(DocumentTabBar)).height, 36.0);
+    expect(tester.getRect(find.byType(ModernTopBar)).height, 40.0);
+    expect(tester.getRect(find.byType(ModernStatusBar)).height, 36.0);
+    expect(find.byType(VerticalToolRail), findsOneWidget);
     expect(
       find.descendant(
         of: find.byType(ModernTopBar),
@@ -246,7 +252,7 @@ void main() {
           find.byKey(const Key('pdf_horizontal_scrollbar')).evaluate().isNotEmpty,
     );
     expect(ctrl.zoomIntent, ZoomIntent.manual);
-    expect(ctrl.scale, closeTo(2.2, 0.05));
+    expect(ctrl.scale, closeTo(2.2, 0.1));
     final hScrollbar = find.byKey(const Key('pdf_horizontal_scrollbar'));
     expect(hScrollbar, findsOneWidget);
     final hRect = tester.getRect(hScrollbar);

@@ -9,13 +9,13 @@ import 'package:pdf_editor_flutter/models/annotation_model.dart';
 import 'package:pdf_editor_flutter/models/document_models.dart';
 import 'package:pdf_editor_flutter/state/editor_controller.dart';
 import 'package:pdf_editor_flutter/ui/theme/app_theme.dart';
-import 'package:pdf_editor_flutter/ui/widgets/floating_tool_dock.dart';
 import 'package:pdf_editor_flutter/ui/widgets/modern_status_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/modern_top_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/pdf_workspace_view.dart';
 import 'package:pdf_editor_flutter/ui/widgets/right_inspector.dart';
 import 'package:pdf_editor_flutter/ui/widgets/search_floating_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/thumbnails_sidebar.dart';
+import 'package:pdf_editor_flutter/ui/widgets/vertical_tool_rail.dart';
 import 'package:pdf_editor_flutter/ui/widgets/welcome_view.dart';
 
 typedef _Metrics = Map<String, Object?>;
@@ -55,11 +55,10 @@ void main() {
       final inspectorW =
           inspectorFound ? tester.getRect(find.byType(RightInspector)).width : 0.0;
       final canvasRect = tester.getRect(find.byType(PdfWorkspaceView));
-      final dock = tester.getRect(find.byType(FloatingToolDock));
+      final rail = tester.getRect(find.byType(VerticalToolRail));
       final toolbarChrome = top.height + status.height;
       final panelChrome = thumbsW + inspectorW;
-      final dockOcclusion =
-          (dock.bottom - canvasRect.top).clamp(0.0, canvasRect.height);
+      const railOcclusion = 0.0;
 
       _report.add({
         'group': 'workspace_geometry',
@@ -76,9 +75,9 @@ void main() {
         'canvasWidthRatio': _r(canvasRect.width / size.width),
         'horizontalChromeRatio': _r(panelChrome / size.width),
         'verticalChromeRatio': _r(toolbarChrome / size.height),
-        'dockTopOcclusionPx': _r(dockOcclusion),
-        'dockOcclusionRatio': _r(dockOcclusion / canvasRect.height),
-        'dockHeight': _r(dock.height),
+        'railTopOcclusionPx': _r(railOcclusion),
+        'railOcclusionRatio': _r(railOcclusion / canvasRect.height),
+        'railWidth': _r(rail.width),
         'inspectorVisible': inspectorFound,
         'inspectorHasEmptyState':
             find.textContaining('在画布上点击选中').evaluate().isNotEmpty,
@@ -111,7 +110,7 @@ void main() {
         'rightToggleSize':
             '${_r(rightToggleRect.width)}x${_r(rightToggleRect.height)}',
         'rightToggleVisibleInViewport': rightToggleRect.right <= size.width,
-        'topBarSingleLine': tester.getRect(find.byType(ModernTopBar)).height == 48,
+        'topBarSingleLine': tester.getRect(find.byType(ModernTopBar)).height == 40,
       });
     }
   });
@@ -222,22 +221,19 @@ void main() {
     await tester.pumpWidget(_realShell(ctrl));
     await tester.pump(const Duration(milliseconds: 60));
 
-    final dock = tester.getRect(find.byType(FloatingToolDock));
+    final rail = tester.getRect(find.byType(VerticalToolRail));
     final search = tester.getRect(find.byType(SearchFloatingBar));
 
     _report.add({
       'group': 'toolbar',
       'viewport': '1480x920',
-      'expandedDock': _r(dock.height),
+      'railWidth': _r(rail.width),
       'searchBarWidth': _r(search.width),
       'searchBarHeight': _r(search.height),
       'searchLeft': _r(search.left),
       'searchRight': _r(search.right),
-      'sameHorizontalBand': (search.top - dock.top).abs() < 4,
-      'totalTopBandHeight': _r(math.max(dock.bottom, search.bottom) -
-          math.min(dock.top, search.top)),
-      'dockWidthPx': _r(dock.width),
-      'dockToolCount': EditorTool.values.length,
+      'canvasTopOcclusionPx': 0,
+      'toolCount': EditorTool.values.length,
     });
   });
 

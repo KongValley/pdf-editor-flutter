@@ -25,6 +25,37 @@ import '../ui/layout/workspace_breakpoints.dart';
 
 enum ZoomIntent { fitWidth, fitPage, manual }
 
+class DocumentTabItem {
+  const DocumentTabItem({
+    required this.path,
+    required this.title,
+    this.page = 1,
+    this.pageCount = 0,
+    this.encrypted = false,
+  });
+
+  final String path;
+  final String title;
+  final int page;
+  final int pageCount;
+  final bool encrypted;
+
+  DocumentTabItem copyWith({
+    String? title,
+    int? page,
+    int? pageCount,
+    bool? encrypted,
+  }) {
+    return DocumentTabItem(
+      path: path,
+      title: title ?? this.title,
+      page: page ?? this.page,
+      pageCount: pageCount ?? this.pageCount,
+      encrypted: encrypted ?? this.encrypted,
+    );
+  }
+}
+
 sealed class _UndoEntry {
   const _UndoEntry();
 }
@@ -151,6 +182,7 @@ class EditorController extends ChangeNotifier {
   bool _navigatingHistory = false;
 
   List<RecentDocumentEntry> recentFiles = [];
+  final List<DocumentTabItem> openTabs = [];
   List<SystemFontInfo> systemFonts = [];
   final List<ProblemEntry> problems = [];
 
@@ -216,6 +248,106 @@ class EditorController extends ChangeNotifier {
 
   void toggleTheme() {
     isDarkMode = !isDarkMode;
+    notifyListeners();
+  }
+
+  void _upsertOpenTab(DocumentTabItem tab) {
+    final idx = openTabs.indexWhere(
+      (t) => t.path.toLowerCase() == tab.path.toLowerCase(),
+    );
+    if (idx >= 0) {
+      openTabs[idx] = tab;
+    } else {
+      openTabs.add(tab);
+    }
+  }
+
+  /// 确保当前处于打开态的文档始终出现在顶部标签栏中（兼容测试直接赋值 filePath 的场景）
+  List<DocumentTabItem> get effectiveTabs {
+    final activePath = filePath;
+    if (!hasDocument || activePath == null) {
+      return List<DocumentTabItem>.unmodifiable(openTabs);
+    }
+    final exists = openTabs.any(
+      (t) => t.path.toLowerCase() == activePath.toLowerCase(),
+    );
+    if (exists) {
+      return openTabs.map((t) {
+        if (t.path.toLowerCase() == activePath.toLowerCase()) {
+          return t.copyWith(
+            title: displayFileName,
+            page: currentPage,
+            pageCount: pageCount,
+            encrypted: encrypted,
+          );
+        }
+        return t;
+      }).toList(growable: false);
+    }
+    return [
+      ...openTabs,
+      DocumentTabItem(
+        path: activePath,
+        title: displayFileName,
+        page: currentPage,
+        pageCount: pageCount,
+        encrypted: encrypted,
+      ),
+    ];
+  }
+
+  bool isTabActive(String path) =>
+      hasDocument &&
+      filePath != null &&
+      filePath!.toLowerCase() == path.toLowerCase();
+
+  /// 从标签栏移除一个非激活标签（不会中断当前文档）
+  void removeInactiveTab(String path) {
+    if (isTabActive(path)) return;
+    openTabs.removeWhere((t) => t.path.toLowerCase() == path.toLowerCase());
+    notifyListeners();
+  }
+
+  /// 关闭当前激活文档并回到欢迎开始页（调用方需先完成未保存确认）
+  Future<void> closeCurrentDocument({bool removeFromTabs = true}) async {
+    flushPendingInlineEdits();
+    final closingPath = filePath;
+    if (removeFromTabs && closingPath != null) {
+      openTabs.removeWhere(
+        (t) => t.path.toLowerCase() == closingPath.toLowerCase(),
+      );
+    }
+    await _cleanupWorkFiles();
+    _undoStack.clear();
+    _redoStack.clear();
+    _batchStartSnapshot = null;
+    selectedIds.clear();
+    selectedThumbPages.clear();
+    editingTextId = null;
+    _backHistory.clear();
+    _forwardHistory.clear();
+    searchOpen = false;
+    searchQuery = '';
+    searchMatchesCount = 0;
+    searchCurrentIndex = -1;
+    textSearcher.resetTextSearch();
+    _disposeLoadedImages();
+
+    filePath = null;
+    activeRenderPath = null;
+    password = null;
+    encrypted = false;
+    pageCount = 0;
+    pageSizes = [];
+    pageRotations = [];
+    activePdfDoc = null;
+    currentPage = 1;
+    viewRotationDeg = 0;
+    outlineNodes = [];
+    annotations = [];
+    viewerRevision++;
+    _setDirty(false);
+    _syncWindowTitle();
     notifyListeners();
   }
 
@@ -560,6 +692,15 @@ class EditorController extends ChangeNotifier {
         }
 
         viewerRevision++;
+        _upsertOpenTab(
+          DocumentTabItem(
+            path: path,
+            title: p.basename(path),
+            page: resumePage,
+            pageCount: pageCount,
+            encrypted: encrypted,
+          ),
+        );
         _setDirty(false);
         loading = false;
         notifyListeners();

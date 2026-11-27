@@ -18,6 +18,7 @@ import 'package:pdf_editor_flutter/ui/widgets/modern_top_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/right_inspector.dart';
 import 'package:pdf_editor_flutter/ui/widgets/search_floating_bar.dart';
 import 'package:pdf_editor_flutter/ui/widgets/thumbnails_sidebar.dart';
+import 'package:pdf_editor_flutter/ui/widgets/vertical_tool_rail.dart';
 import 'package:pdf_editor_flutter/ui/widgets/welcome_view.dart';
 
 void main() {
@@ -961,7 +962,7 @@ void main() {
     await mergeFuture;
   });
 
-  testWidgets('Recent file management, Ctrl+F refocus/select-all, pre-merge prompt & dock auto-collapse',
+  testWidgets('Recent file management, Ctrl+F refocus/select-all, and pre-merge prompt',
       (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
@@ -1043,7 +1044,7 @@ void main() {
     expect(welcomeCtrl.recentFiles, isEmpty);
     expect(find.text('最近打开'), findsNothing);
 
-    // 2. Ctrl+F 重新聚焦搜索框并全选 + 合并未保存提示 + 工具坞自动收纳
+    // 2. Ctrl+F 重新聚焦搜索框并全选 + 合并未保存提示
     final ctrl = EditorController();
     addTearDown(ctrl.dispose);
     ctrl.filePath = existingA.path;
@@ -1134,64 +1135,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     await mergeProceedFuture;
 
-    // 悬浮工具坞自动收纳：初始展开 -> 鼠标移出延时收纳 -> 悬停展开 -> 钉住后不自动收纳
-    expect(find.text('高亮'), findsOneWidget);
-    final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await gesture.addPointer(location: Offset.zero);
-    addTearDown(gesture.removePointer);
-
-    await _hoverOver(tester, gesture, find.text('选择').first);
-    await gesture.moveTo(const Offset(10, 400));
+    // 工具栏已固定在画布左侧，默认选择模式不会遮挡画布顶部。
+    expect(find.byType(VerticalToolRail), findsOneWidget);
+    expect(find.byTooltip(EditorTool.highlight.tooltip), findsOneWidget);
+    await tester.tap(find.byTooltip(EditorTool.highlight.tooltip));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 1000));
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text('工具栏'), findsOneWidget);
-    expect(find.text('高亮'), findsNothing);
-    _expectUnifiedTypography(tester);
-
-    // 悬停收纳胶囊立即展开
-    await _hoverOver(tester, gesture, find.text('工具栏'));
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text('高亮'), findsOneWidget);
-
-    // 点击固定展开开关，移出鼠标 4 秒仍保持展开
-    await tester.tap(find.byTooltip('自动收纳已开启（点击固定展开）'));
-    await tester.pump();
-    expect(ctrl.autoCollapseDock, isFalse);
-    await gesture.moveTo(const Offset(10, 400));
-    await tester.pump();
-    await tester.pump(const Duration(seconds: 4));
-    expect(find.text('高亮'), findsOneWidget);
-
-    // 重新开启自动收纳并手动点击收起按钮，校验平滑形变收缩动效
-    await tester.tap(find.byTooltip('已固定展开（点击开启自动收纳）'));
-    await tester.pump();
-    expect(ctrl.autoCollapseDock, isTrue);
-
-    final dockMaterialFinder = find
-        .descendant(
-          of: find.byType(FloatingToolDock),
-          matching: find.byType(Material),
-        )
-        .first;
-    final expandedWidth = tester.getSize(dockMaterialFinder).width;
-    await tester.tap(find.byTooltip('收起工具栏'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 90));
-    final midCollapseWidth = tester.getSize(dockMaterialFinder).width;
-    await tester.pump(const Duration(milliseconds: 200));
-    final collapsedWidth = tester.getSize(dockMaterialFinder).width;
-    expect(
-      midCollapseWidth,
-      lessThan(expandedWidth),
-      reason: 'expanded=$expandedWidth mid=$midCollapseWidth collapsed=$collapsedWidth',
-    );
-    expect(
-      midCollapseWidth,
-      greaterThan(collapsedWidth),
-      reason: 'expanded=$expandedWidth mid=$midCollapseWidth collapsed=$collapsedWidth',
-    );
-    expect(find.text('工具栏'), findsOneWidget);
+    expect(ctrl.tool, EditorTool.highlight);
   });
 
   testWidgets('Merge entry points and dialog work without an open document',

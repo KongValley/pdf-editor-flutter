@@ -3,6 +3,36 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'hover_feedback.dart';
 
+class DesktopKeycap extends StatelessWidget {
+  const DesktopKeycap(this.label, {super.key, this.onAccent = false});
+
+  final String label;
+  final bool onAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.appColors;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: onAccent ? onPrimary.withValues(alpha: 0.12) : c.subtleFill,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: onAccent ? onPrimary.withValues(alpha: 0.32) : c.border,
+        ),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: AppTypography.caption,
+          color: onAccent ? onPrimary : c.mutedText,
+        ),
+      ),
+    );
+  }
+}
+
 /// 统一的桌面弹窗标题头（图标徽章 + 标题 + 可选副标题 + 可选右上角关闭按钮）
 class DesktopDialogHeader extends StatelessWidget {
   const DesktopDialogHeader({

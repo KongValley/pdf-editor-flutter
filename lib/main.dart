@@ -17,17 +17,19 @@ import 'services/native_bridge.dart';
 import 'services/recent_and_log_service.dart';
 import 'state/editor_controller.dart';
 import 'ui/dialogs/batch_dialogs.dart';
+import 'ui/dialogs/command_palette_dialog.dart';
 import 'ui/dialogs/editor_dialogs.dart';
 import 'ui/layout/workspace_breakpoints.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/widgets/desktop_controls.dart';
-import 'ui/widgets/floating_tool_dock.dart';
+import 'ui/widgets/document_tab_bar.dart';
 import 'ui/widgets/modern_status_bar.dart';
 import 'ui/widgets/modern_top_bar.dart';
 import 'ui/widgets/pdf_workspace_view.dart';
 import 'ui/widgets/right_inspector.dart';
 import 'ui/widgets/search_floating_bar.dart';
 import 'ui/widgets/thumbnails_sidebar.dart';
+import 'ui/widgets/vertical_tool_rail.dart';
 import 'ui/widgets/welcome_view.dart';
 import 'utils/page_range.dart';
 
@@ -112,6 +114,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
   WorkspaceLayoutSpec? _layoutSpec;
   bool _lastLeftOverlay = false;
   bool _lastRightOverlay = false;
+  bool _closingDocumentTab = false;
 
   @override
   void initState() {
@@ -254,6 +257,10 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
       return false;
     }
 
+    if (isCtrl && key == LogicalKeyboardKey.keyK && !isAlt && !isShift) {
+      unawaited(_openCommandPalette());
+      return true;
+    }
     if (isCtrl && key == LogicalKeyboardKey.keyO && !isAlt) {
       if (ctrl.isBusy) return true;
       unawaited(_handleOpenFile());
@@ -486,19 +493,129 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
     return !ctrl.dirty;
   }
 
-  Future<void> _openPath(
+  Future<bool> _openPath(
     String path, {
     bool skipDirtyConfirm = false,
   }) async {
-    if (!skipDirtyConfirm && !await _confirmDiscardIfDirty()) return;
-    if (!mounted) return;
-    await widget.controller.openDocument(
+    final ctrl = widget.controller;
+    if (ctrl.isBusy || ctrl.loading) return false;
+    if (!skipDirtyConfirm && !await _confirmDiscardIfDirty()) return false;
+    if (!mounted || ctrl.isBusy || ctrl.loading) return false;
+    return ctrl.openDocument(
       path,
       promptPassword: (wrongPw) => showPasswordPromptDialog(
         context,
         wrongPassword: wrongPw,
       ),
     );
+  }
+
+  Future<void> _handleSelectTab(String path) async {
+    if (_closingDocumentTab || widget.controller.isTabActive(path)) return;
+    await _openPath(path);
+  }
+
+  Future<void> _handleCloseTab(String path) async {
+    final ctrl = widget.controller;
+    if (_closingDocumentTab || ctrl.isBusy || ctrl.loading) return;
+    if (!ctrl.isTabActive(path)) {
+      ctrl.removeInactiveTab(path);
+      return;
+    }
+
+    _closingDocumentTab = true;
+    try {
+      if (!await _confirmDiscardIfDirty() || !mounted) return;
+      final tabs = ctrl.effectiveTabs;
+      final index = tabs.indexWhere((tab) => ctrl.isTabActive(tab.path));
+      if (index < 0) return;
+      if (tabs.length == 1) {
+        await ctrl.closeCurrentDocument();
+        return;
+      }
+      final adjacent = tabs[index + 1 < tabs.length ? index + 1 : index - 1];
+      // Keep the current document intact if the neighboring file can't open.
+      if (await _openPath(adjacent.path, skipDirtyConfirm: true) && mounted) {
+        ctrl.removeInactiveTab(path);
+      }
+    } finally {
+      _closingDocumentTab = false;
+    }
+  }
+
+  Future<void> _openCommandPalette() async {
+    final ctrl = widget.controller;
+    if (!mounted || ctrl.isBusy || ctrl.loading ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return;
+    }
+    final hasDoc = ctrl.hasDocument;
+    final spec = _layoutSpec;
+    await showCommandPaletteDialog(context, actions: [
+      CommandPaletteAction(id: 'open', group: '文件', label: '打开 PDF 文件',
+        icon: Icons.folder_open_rounded, shortcut: 'Ctrl+O', keywords: const ['open', 'file'], onExecute: _handleOpenFile),
+      CommandPaletteAction(id: 'image-to-pdf', group: '文件', label: '图片转 PDF',
+        icon: Icons.photo_library_outlined, keywords: const ['convert', 'image', 'PNG', 'JPEG'], onExecute: _handleImageToPdf),
+      CommandPaletteAction(id: 'merge', group: '文件', label: '合并 PDF',
+        icon: Icons.merge_type_rounded, keywords: const ['merge', 'combine'], onExecute: _handleMergePdf),
+      CommandPaletteAction(id: 'save', group: '文件', label: '保存 PDF',
+        icon: Icons.save_outlined, shortcut: 'Ctrl+S', enabled: hasDoc, keywords: const ['save'], onExecute: _handleSave),
+      CommandPaletteAction(id: 'save-as', group: '文件', label: '另存为 PDF',
+        icon: Icons.save_as_outlined, shortcut: 'Ctrl+Shift+S', enabled: hasDoc && !ctrl.encrypted, keywords: const ['save as'], onExecute: _handleSaveAs),
+      CommandPaletteAction(id: 'export', group: '文件', label: '导出页面 / 图片',
+        icon: Icons.ios_share_rounded, shortcut: 'Ctrl+E', enabled: hasDoc, keywords: const ['export', 'PNG'], onExecute: _handleExportPagesDialog),
+      CommandPaletteAction(id: 'print', group: '文件', label: '打印文档',
+        icon: Icons.print_outlined, shortcut: 'Ctrl+P', enabled: hasDoc, keywords: const ['print'], onExecute: _handlePrintDialog),
+      CommandPaletteAction(id: 'undo', group: '编辑', label: '撤销',
+        icon: Icons.undo_rounded, shortcut: 'Ctrl+Z', enabled: ctrl.canUndo, keywords: const ['undo'], onExecute: ctrl.undo),
+      CommandPaletteAction(id: 'redo', group: '编辑', label: '重做',
+        icon: Icons.redo_rounded, shortcut: 'Ctrl+Y', enabled: ctrl.canRedo, keywords: const ['redo'], onExecute: ctrl.redo),
+      CommandPaletteAction(id: 'search', group: '视图', label: '搜索文档文本',
+        icon: Icons.search_rounded, shortcut: 'Ctrl+F', enabled: hasDoc, keywords: const ['search', 'find'], onExecute: ctrl.openOrFocusSearch),
+      CommandPaletteAction(id: 'thumbnails', group: '视图', label: '显示/隐藏缩略图栏',
+        icon: Icons.view_sidebar_outlined, shortcut: 'Ctrl+B', enabled: hasDoc, keywords: const ['thumbnails', 'panel'], onExecute: () => ctrl.toggleThumbnails(spec)),
+      CommandPaletteAction(id: 'inspector', group: '视图', label: '显示/隐藏右侧面板',
+        icon: Icons.vertical_split_outlined, shortcut: 'Ctrl+Shift+B', enabled: hasDoc, keywords: const ['inspector', 'panel'], onExecute: () => ctrl.toggleRightPanel(spec)),
+      CommandPaletteAction(id: 'fit-width', group: '视图', label: '适合宽度',
+        icon: Icons.width_normal_rounded, enabled: hasDoc, keywords: const ['zoom', 'fit width'], onExecute: ctrl.fitWidth),
+      CommandPaletteAction(id: 'fit-page', group: '视图', label: '适合页面',
+        icon: Icons.fit_screen_outlined, enabled: hasDoc, keywords: const ['zoom', 'fit page'], onExecute: ctrl.fitPage),
+      CommandPaletteAction(id: 'view-continuous', group: '视图', label: '连续滚动视图',
+        icon: Icons.view_day_outlined, shortcut: 'Ctrl+1', enabled: hasDoc, keywords: const ['view', 'continuous'], onExecute: () => ctrl.setViewMode(ReadingViewMode.continuous)),
+      CommandPaletteAction(id: 'view-single', group: '视图', label: '单页阅览视图',
+        icon: Icons.crop_portrait_rounded, shortcut: 'Ctrl+2', enabled: hasDoc, keywords: const ['view', 'single'], onExecute: () => ctrl.setViewMode(ReadingViewMode.single)),
+      CommandPaletteAction(id: 'view-twopage', group: '视图', label: '双页对开视图',
+        icon: Icons.menu_book_outlined, shortcut: 'Ctrl+3', enabled: hasDoc, keywords: const ['view', 'two page'], onExecute: () => ctrl.setViewMode(ReadingViewMode.twoPage)),
+      CommandPaletteAction(id: 'rot-left', group: '视图', label: '视图左旋 90°',
+        icon: Icons.rotate_left_rounded, shortcut: '[', enabled: hasDoc, keywords: const ['rotate', 'left'], onExecute: () => ctrl.rotateView(-90)),
+      CommandPaletteAction(id: 'rot-right', group: '视图', label: '视图右旋 90°',
+        icon: Icons.rotate_right_rounded, shortcut: ']', enabled: hasDoc, keywords: const ['rotate', 'right'], onExecute: () => ctrl.rotateView(90)),
+      CommandPaletteAction(id: 'theme', group: '视图', label: ctrl.isDarkMode ? '切换浅色外观' : '切换深色外观',
+        icon: ctrl.isDarkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+        keywords: const ['theme', 'dark', 'light'], onExecute: ctrl.toggleTheme),
+      if (hasDoc) ...[
+        CommandPaletteAction(id: 'page-insert-blank', group: '页面批处理', label: '在当前页后插入空白页',
+          icon: Icons.note_add_outlined, shortcut: 'Ctrl+Shift+N', enabled: !ctrl.encrypted, keywords: const ['insert', 'blank', 'page'], onExecute: () => ctrl.insertBlankPageAfter(ctrl.currentPage - 1)),
+        CommandPaletteAction(id: 'page-delete', group: '页面批处理', label: '删除页面…',
+          icon: Icons.delete_sweep_outlined, shortcut: 'Ctrl+Shift+Del', enabled: !ctrl.encrypted && ctrl.pageCount > 1, keywords: const ['delete', 'remove', 'page'], onExecute: _handleDeletePagesDialog),
+        CommandPaletteAction(id: 'page-extract', group: '页面批处理', label: '提取页面为 PDF…',
+          icon: Icons.content_cut_rounded, keywords: const ['extract', 'page'], onExecute: _handleExtractPagesDialog),
+        CommandPaletteAction(id: 'page-split', group: '页面批处理', label: '批量拆分 PDF…',
+          icon: Icons.call_split_rounded, keywords: const ['split', 'batch'], onExecute: () => showSplitDialog(context, ctrl)),
+        CommandPaletteAction(id: 'page-orientation', group: '页面批处理', label: '统一页面方向…',
+          icon: Icons.auto_fix_high_rounded, enabled: !ctrl.encrypted, keywords: const ['orientation', 'rotate', 'ocr'], onExecute: () => showOrientationUnifyDialog(context, ctrl)),
+        CommandPaletteAction(id: 'page-numbers', group: '页面批处理', label: '添加页码…',
+          icon: Icons.format_list_numbered_rounded, enabled: !ctrl.encrypted, keywords: const ['page number', 'header', 'footer'], onExecute: () => showPageNumberDialog(context, ctrl)),
+        CommandPaletteAction(id: 'page-watermark', group: '页面批处理', label: '添加文字水印…',
+          icon: Icons.branding_watermark_outlined, enabled: !ctrl.encrypted, keywords: const ['watermark'], onExecute: () => showWatermarkDialog(context, ctrl)),
+      ],
+      CommandPaletteAction(id: 'about', group: '帮助', label: '关于与环境自检',
+        icon: Icons.info_outline_rounded, keywords: const ['about', 'help'], onExecute: () => showAboutSelfCheckDialog(context, ctrl)),
+      if (hasDoc)
+        for (final tool in EditorTool.values)
+          CommandPaletteAction(id: 'tool-${tool.name}', group: '批注工具', label: tool.label,
+            icon: editorToolIcons[tool]!, shortcut: tool.shortcutKey, keywords: [tool.name], onExecute: () => ctrl.setTool(tool)),
+    ]);
   }
 
   Future<void> _handleOpenFile() async {
@@ -1052,6 +1169,15 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                   Column(
                     children: [
                       FocusTraversalOrder(
+                        order: const NumericFocusOrder(0),
+                        child: DocumentTabBar(
+                          controller: ctrl,
+                          onOpenFile: _handleOpenFile,
+                          onSelectTab: _handleSelectTab,
+                          onCloseTab: _handleCloseTab,
+                        ),
+                      ),
+                      FocusTraversalOrder(
                         order: const NumericFocusOrder(1),
                         child: ModernTopBar(
                           controller: ctrl,
@@ -1068,6 +1194,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                           onExportPagesDialog: _handleExportPagesDialog,
                           onPrintDialog: _handlePrintDialog,
                           onAbout: () => showAboutSelfCheckDialog(context, ctrl),
+                          onOpenCommandPalette: _openCommandPalette,
                         ),
                       ),
                       Expanded(
@@ -1076,6 +1203,10 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                                 children: [
                                   Row(
                                     children: [
+                                      FocusTraversalOrder(
+                                        order: const NumericFocusOrder(1.5),
+                                        child: VerticalToolRail(controller: ctrl),
+                                      ),
                                       if (showLeftDocked)
                                         FocusTraversalOrder(
                                           order: const NumericFocusOrder(2),
@@ -1086,22 +1217,10 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                                         child: LayoutBuilder(
                                           builder: (context, canvasBox) {
                                             final canvasW = canvasBox.maxWidth;
-                                            final shareTopBand =
-                                                ctrl.searchOpen &&
-                                                    canvasW >= 780;
-                                            final searchMaxW = math
-                                                .max(
-                                                  0.0,
-                                                  math.min(
-                                                    340.0,
-                                                    canvasW - 32.0,
-                                                  ),
-                                                )
-                                                .clamp(
-                                                  math.min(220.0, canvasW),
-                                                  340.0,
-                                                )
-                                                .toDouble();
+                                            final hasContext = ToolContextStrip.isVisibleFor(ctrl);
+                                            final searchMaxW = math.min(340.0, math.max(220.0, canvasW - 24));
+                                            final shareTopBand = canvasW - 24 >=
+                                                ToolContextStrip.inlineWidthFor(ctrl) + searchMaxW + 10;
                                             return Stack(
                                               children: [
                                                 Positioned.fill(
@@ -1128,41 +1247,37 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                                                     ),
                                                   ),
                                                 ),
-                                                // 悬浮批注工具坞（独立定位，宽画布与搜索条同带排布不叠高）
-                                                Positioned(
-                                                  top: 12,
-                                                  left: 16,
-                                                  right: shareTopBand
-                                                      ? searchMaxW + 28
-                                                      : 16,
-                                                  child: FocusTraversalOrder(
-                                                    order:
-                                                        const NumericFocusOrder(
-                                                      3.0,
-                                                    ),
-                                                    child: Align(
-                                                      alignment: shareTopBand
-                                                          ? Alignment.topLeft
-                                                          : Alignment.topCenter,
-                                                      child: FloatingToolDock(
-                                                        controller: ctrl,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (ctrl.searchOpen)
+                                                if (hasContext || ctrl.searchOpen)
                                                   Positioned(
-                                                    top: shareTopBand ? 12 : 62,
-                                                    right: 16,
-                                                    child: FocusTraversalOrder(
-                                                      order:
-                                                          const NumericFocusOrder(
-                                                        3.8,
-                                                      ),
-                                                      child: SearchFloatingBar(
-                                                        controller: ctrl,
-                                                        maxWidth: searchMaxW,
-                                                      ),
+                                                    top: 10,
+                                                    left: 12,
+                                                    right: 12,
+                                                    child: Flex(
+                                                      direction: shareTopBand ? Axis.horizontal : Axis.vertical,
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      crossAxisAlignment: shareTopBand ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                                                      children: [
+                                                        Flexible(
+                                                          flex: shareTopBand ? 1 : 0,
+                                                          child: Align(
+                                                            alignment: Alignment.topLeft,
+                                                            child: FocusTraversalOrder(
+                                                              order: const NumericFocusOrder(3),
+                                                              child: ToolContextStrip(controller: ctrl),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        if (hasContext && ctrl.searchOpen)
+                                                          const SizedBox(width: 10, height: 8),
+                                                        if (ctrl.searchOpen)
+                                                          FocusTraversalOrder(
+                                                            order: const NumericFocusOrder(3.8),
+                                                            child: SearchFloatingBar(
+                                                              controller: ctrl,
+                                                              maxWidth: searchMaxW,
+                                                            ),
+                                                          ),
+                                                      ],
                                                     ),
                                                   ),
                                               ],
@@ -1195,7 +1310,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                                     Positioned(
                                       top: 0,
                                       bottom: 0,
-                                      left: 0,
+                                      left: VerticalToolRail.width,
                                       child: FocusTraversalOrder(
                                         order: const NumericFocusOrder(2),
                                         child: buildThumbnails(overlay: true),
@@ -1218,7 +1333,8 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
                                 onOpenFile: _handleOpenFile,
                                 onMergePdf: () => _handleMergePdf(),
                                 onImageToPdf: () => _handleImageToPdf(),
-                                onOpenPath: (path) => _openPath(path),
+                                onOpenPath: _openPath,
+                                onOpenCommandPalette: _openCommandPalette,
                               ),
                       ),
                       FocusTraversalOrder(
@@ -1235,7 +1351,7 @@ class _PdfEditorShellState extends State<PdfEditorShell> {
             // 加载 / 批处理状态提示气泡
             if (ctrl.isBusy || ctrl.loading)
               Positioned(
-                top: 56,
+                top: DocumentTabBar.height + ModernTopBar.height + 8,
                 left: 0,
                 right: 0,
                 child: IgnorePointer(

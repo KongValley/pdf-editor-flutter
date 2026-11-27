@@ -23,7 +23,10 @@ class ModernTopBar extends StatelessWidget {
     this.rightPanelActive,
     this.onToggleThumbnails,
     this.onToggleRightPanel,
+    this.onOpenCommandPalette,
   });
+
+  static const height = 40.0;
 
   final EditorController controller;
   final VoidCallback onOpenFile;
@@ -39,6 +42,7 @@ class ModernTopBar extends StatelessWidget {
   final bool? rightPanelActive;
   final VoidCallback? onToggleThumbnails;
   final VoidCallback? onToggleRightPanel;
+  final VoidCallback? onOpenCommandPalette;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +58,7 @@ class ModernTopBar extends StatelessWidget {
     return Material(
       color: c.surfaceBg,
       child: Container(
-        height: 48,
+        height: height,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: c.border)),
@@ -67,41 +71,6 @@ class ModernTopBar extends StatelessWidget {
                 : constraints.maxWidth >= WorkspaceLayoutSpec.narrowBreakpoint
                     ? TopBarDensity.compact
                     : TopBarDensity.ultraCompact;
-
-            final brand = Tooltip(
-              message: 'PDF 编辑器',
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: density == TopBarDensity.full ? 8 : 7,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: c.accentSoft,
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.picture_as_pdf_rounded,
-                      size: 17,
-                      color: c.accent,
-                    ),
-                    if (density == TopBarDensity.full) ...[
-                      const SizedBox(width: 5),
-                      Text(
-                        'PDF 编辑器',
-                        style: TextStyle(
-                          fontSize: AppTypography.title,
-                          fontWeight: FontWeight.w700,
-                          color: c.accent,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
 
             final exportMenu = ClipRRect(
               borderRadius: BorderRadius.circular(7),
@@ -231,7 +200,7 @@ class ModernTopBar extends StatelessWidget {
                   ),
                   PopupMenuItem(
                     value: 'save_as',
-                    enabled: hasDoc && !busy,
+                    enabled: hasDoc && !controller.encrypted && !busy,
                     height: 36,
                     child: const DesktopMenuItemRow(
                       icon: Icons.save_as_outlined,
@@ -350,8 +319,6 @@ class ModernTopBar extends StatelessWidget {
             );
 
             final leftChildren = <Widget>[
-              brand,
-              const SizedBox(width: 6),
               _TopButton(
                 icon: Icons.folder_open_rounded,
                 label: density == TopBarDensity.ultraCompact ? null : '打开',
@@ -390,8 +357,9 @@ class ModernTopBar extends StatelessWidget {
                 const SizedBox(width: 2),
                 _TopButton(
                   icon: Icons.save_as_outlined,
+                  label: '另存为',
                   tooltip: '另存为 (Ctrl+Shift+S)',
-                  enabled: hasDoc && !busy,
+                  enabled: hasDoc && !controller.encrypted && !busy,
                   onPressed: onSaveAs,
                 ),
               ],
@@ -429,59 +397,50 @@ class ModernTopBar extends StatelessWidget {
               ],
             ];
 
-            final docMaxWidth = density == TopBarDensity.full
-                ? 280.0
-                : density == TopBarDensity.compact
-                    ? 190.0
-                    : 150.0;
-            final Widget docPill = hasDoc && constraints.maxWidth >= 560
-                ? Container(
-                        constraints: BoxConstraints(maxWidth: docMaxWidth),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.subtleFill,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: c.border),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (controller.dirty) ...[
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFF59E0B),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                            ],
-                            Flexible(
-                              child: Text(
-                                controller.displayFileName,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: AppTypography.body,
-                                  fontWeight: FontWeight.w500,
-                                ),
+            final docMaxWidth = switch (density) {
+              TopBarDensity.full => 320.0,
+              TopBarDensity.compact => 264.0,
+              TopBarDensity.ultraCompact => 224.0,
+            };
+            final docPill = constraints.maxWidth >= 560
+                ? ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: docMaxWidth),
+                    child: DesktopHoverContainer(
+                      tooltip: '快捷命令 (Ctrl+K)',
+                      onTap: onOpenCommandPalette,
+                      enabled: !busy && onOpenCommandPalette != null,
+                      height: 30,
+                      borderRadius: 6,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      baseColor: c.subtleFill,
+                      borderColor: c.border,
+                      hoverColor: c.hoverFill,
+                      hoverBorderColor: c.hoverBorder,
+                      pressedColor: c.accentSoft,
+                      builder: (context, hovered, _) => Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.manage_search_rounded, size: 17,
+                              color: hovered ? c.accent : c.mutedText),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              hasDoc ? controller.displayFileName : '快捷命令',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: AppTypography.body,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
-                            if (controller.encrypted) ...[
-                              const SizedBox(width: 6),
-                              Icon(
-                                Icons.lock_outline_rounded,
-                                size: 13,
-                                color: c.mutedText,
-                              ),
-                            ],
-                          ],
-                        ),
-                      )
-                    : const SizedBox.shrink();
+                          ),
+                          const SizedBox(width: 8),
+                          const DesktopKeycap('Ctrl+K'),
+                        ],
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink();
 
             final rightChildren = <Widget>[
               if (density == TopBarDensity.full) ...[

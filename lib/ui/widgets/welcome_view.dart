@@ -16,6 +16,7 @@ class WelcomeView extends StatelessWidget {
     required this.onMergePdf,
     required this.onImageToPdf,
     required this.onOpenPath,
+    this.onOpenCommandPalette,
   });
 
   final EditorController controller;
@@ -23,6 +24,7 @@ class WelcomeView extends StatelessWidget {
   final VoidCallback onMergePdf;
   final VoidCallback onImageToPdf;
   final Future<void> Function(String path) onOpenPath;
+  final VoidCallback? onOpenCommandPalette;
 
   @override
   Widget build(BuildContext context) {
@@ -122,6 +124,16 @@ class WelcomeView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
+            if (onOpenCommandPalette != null)
+              Align(
+                alignment: Alignment.center,
+                child: TextButton.icon(
+                  onPressed: onOpenCommandPalette,
+                  icon: const Icon(Icons.search_rounded, size: 16),
+                  label: const Text('快捷命令 (Ctrl+K)'),
+                ),
+              ),
+            if (onOpenCommandPalette != null) const SizedBox(height: 2),
             Row(
               children: [
                 Expanded(
@@ -304,7 +316,7 @@ class WelcomeView extends StatelessWidget {
                 padding: EdgeInsets.all(cardPadding),
                 decoration: BoxDecoration(
                   color: c.surfaceBg,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: c.border),
                   boxShadow: [
                     BoxShadow(

@@ -312,7 +312,7 @@ void main() {
     expect(find.byType(RightInspector), findsNothing);
     final canvasWidthBefore =
         tester.getRect(find.byType(PdfWorkspaceView)).width;
-    expect(canvasWidthBefore, closeTo(1024.0, 1.0));
+    expect(canvasWidthBefore, closeTo(978.0, 1.0));
 
     await tester.tap(find.byTooltip('显示/隐藏右侧面板 (Ctrl+Shift+B)'));
     await tester.pump(const Duration(milliseconds: 50));
@@ -327,7 +327,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 60));
 
     expect(tester.takeException(), isNull);
-    expect(tester.getRect(find.byType(ModernTopBar)).height, 48.0);
+    expect(tester.getRect(find.byType(ModernTopBar)).height, 40.0);
     expect(
       find.descendant(
         of: find.byType(ModernTopBar),

@@ -16,6 +16,8 @@ class ModernStatusBar extends StatefulWidget {
   final EditorController controller;
   final VoidCallback onOpenProblems;
 
+  static const height = 36.0;
+
   @override
   State<ModernStatusBar> createState() => _ModernStatusBarState();
 }
@@ -121,7 +123,7 @@ class _ModernStatusBarState extends State<ModernStatusBar> {
     return Material(
       color: c.surfaceBg,
       child: Container(
-        height: 40,
+        height: ModernStatusBar.height,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           border: Border(top: BorderSide(color: c.border)),

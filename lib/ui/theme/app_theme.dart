@@ -75,31 +75,31 @@ class AppColors extends ThemeExtension<AppColors> {
   }
 
   static const light = AppColors(
-    shellBg: Color(0xFFF3F5F8),
+    shellBg: Color(0xFFF3F4F6),
     surfaceBg: Color(0xFFFFFFFF),
-    canvasBg: Color(0xFFE5E9F0),
-    elevatedBg: Color(0xFFFCFDFF),
-    border: Color(0xFFDDE2EB),
-    mutedText: Color(0xFF526075),
-    subtleFill: Color(0xFFF1F5F9),
-    hoverFill: Color(0xFFE7EFFD),
-    hoverBorder: Color(0xFF93C5FD),
-    accent: Color(0xFF2563EB),
-    accentSoft: Color(0xFFE0ECFF),
+    canvasBg: Color(0xFFECEEF2),
+    elevatedBg: Color(0xFFFFFFFF),
+    border: Color(0xFFE2E5EC),
+    mutedText: Color(0xFF5B6373),
+    subtleFill: Color(0xFFF3F5F8),
+    hoverFill: Color(0xFFEEF2FF),
+    hoverBorder: Color(0xFFA5B4FC),
+    accent: Color(0xFF4F46E5),
+    accentSoft: Color(0xFFEEF2FF),
   );
 
   static const dark = AppColors(
-    shellBg: Color(0xFF151820),
-    surfaceBg: Color(0xFF1C202B),
-    canvasBg: Color(0xFF111319),
-    elevatedBg: Color(0xFF242937),
-    border: Color(0xFF2D3344),
-    mutedText: Color(0xFF94A3B8),
-    subtleFill: Color(0xFF262B38),
-    hoverFill: Color(0xFF2A364F),
-    hoverBorder: Color(0xFF60A5FA),
-    accent: Color(0xFF60A5FA),
-    accentSoft: Color(0xFF1E3A5F),
+    shellBg: Color(0xFF0E1015),
+    surfaceBg: Color(0xFF141720),
+    canvasBg: Color(0xFF090B0F),
+    elevatedBg: Color(0xFF1B1F2B),
+    border: Color(0xFF252A38),
+    mutedText: Color(0xFF8E9AB0),
+    subtleFill: Color(0xFF1B1F2B),
+    hoverFill: Color(0xFF23293B),
+    hoverBorder: Color(0xFF818CF8),
+    accent: Color(0xFF818CF8),
+    accentSoft: Color(0xFF23224A),
   );
 }
 
@@ -221,11 +221,11 @@ class AppTheme {
   static ThemeData build(bool dark) {
     final ext = dark ? AppColors.dark : AppColors.light;
     final brightness = dark ? Brightness.dark : Brightness.light;
-    final onSurface = dark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
-    final onPrimary = dark ? const Color(0xFF0B1220) : Colors.white;
-    final accentHover = dark ? const Color(0xFF7BB8FC) : const Color(0xFF1D4ED8);
+    final onSurface = dark ? const Color(0xFFF1F5F9) : const Color(0xFF111827);
+    final onPrimary = dark ? const Color(0xFF0B0E17) : Colors.white;
+    final accentHover = dark ? const Color(0xFFA5B4FC) : const Color(0xFF4338CA);
     final accentPressed =
-        dark ? const Color(0xFF3B82F6) : const Color(0xFF1E40AF);
+        dark ? const Color(0xFF6366F1) : const Color(0xFF3730A3);
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: ext.accent,
